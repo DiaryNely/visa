@@ -46,40 +46,35 @@
                     </div>
                 </div>
 
-                <!-- SECTION: Type de demande -->
+                <!-- INFO: Types recuperes depuis le demandeur -->
                 <div class="form-section">
-                    <div class="form-section-title">📋 Type de demande</div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Type de demande <span class="required">*</span></label>
-                            <select name="typeDemandeId" class="form-control" required>
-                                <option value="">-- Sélectionnez --</option>
-                                <c:forEach var="type" items="${typesDemande}">
-                                    <option value="${type.id}">${type.libelle}</option>
-                                </c:forEach>
-                            </select>
+                    <div class="form-section-title">📋 Informations de type</div>
+                    <div class="readonly-panel">
+                        <div id="typeInfosHint" class="readonly-hint">
+                            Selectionnez un demandeur pour recuperer automatiquement le type de demande, le type de VISA et le profil.
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Type de VISA demandé <span class="required">*</span></label>
-                            <select name="typeVisaId" class="form-control" required>
-                                <option value="">-- Sélectionnez --</option>
-                                <c:forEach var="type" items="${typesVisa}">
-                                    <option value="${type.id}">${type.libelle} (${type.dureeValidite} mois)</option>
-                                </c:forEach>
-                            </select>
+
+                        <div class="form-row mt-1">
+                            <div class="form-group">
+                                <label class="form-label">Type de demande</label>
+                                <input type="text" id="typeDemandeLibelleView" class="form-control readonly-field" readonly value="-">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Type de VISA</label>
+                                <input type="text" id="typeVisaLibelleView" class="form-control readonly-field" readonly value="-">
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Profil du demandeur</label>
-                            <select name="typeProfilId" class="form-control">
-                                <option value="">-- Aucun --</option>
-                                <c:forEach var="profil" items="${typesProfil}">
-                                    <option value="${profil.id}">${profil.libelle}</option>
-                                </c:forEach>
-                            </select>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Profil</label>
+                                <input type="text" id="typeProfilLibelleView" class="form-control readonly-field" readonly value="-">
+                            </div>
                         </div>
                     </div>
+                    <input type="hidden" name="typeDemandeId" id="typeDemandeIdHidden">
+                    <input type="hidden" name="typeVisaId" id="typeVisaIdHidden">
+                    <input type="hidden" name="typeProfilId" id="typeProfilIdHidden">
                 </div>
 
                 <!-- SECTION: VISA Transformable -->
@@ -105,7 +100,7 @@
 
             <div class="card-footer" style="display: flex; justify-content: flex-end; gap: 12px;">
                 <a href="${pageContext.request.contextPath}/demandes" class="btn btn-outline">Annuler</a>
-                <button type="submit" class="btn btn-primary btn-lg">📤 Créer la demande</button>
+                <button type="submit" id="submitDemandeBtn" class="btn btn-primary btn-lg" disabled>📤 Créer la demande</button>
             </div>
         </div>
     </form>
@@ -116,9 +111,15 @@
 function loadVisasTransformables() {
     var demandeurId = document.getElementById('demandeurSelect').value;
     var container = document.getElementById('visaTransformableContainer');
+    var typeInfosHint = document.getElementById('typeInfosHint');
+    var submitBtn = document.getElementById('submitDemandeBtn');
+
+    resetTypeFields();
+    submitBtn.disabled = true;
 
     if (!demandeurId) {
         container.innerHTML = '<div class="alert alert-info">ℹ️ Sélectionnez d\'abord un demandeur pour voir ses VISA transformables.</div>';
+        typeInfosHint.textContent = 'Selectionnez un demandeur pour recuperer automatiquement le type de demande, le type de VISA et le profil.';
         return;
     }
 
@@ -150,6 +151,38 @@ function loadVisasTransformables() {
         .catch(function(err) {
             container.innerHTML = '<div class="alert alert-error">❌ Erreur lors du chargement des VISA transformables.</div>';
         });
+
+    fetch('${pageContext.request.contextPath}/demandes/type-infos?demandeurId=' + demandeurId)
+        .then(function(response) { return response.json(); })
+        .then(function(payload) {
+            if (!payload.found) {
+                typeInfosHint.textContent = 'Aucune information de type trouvee pour ce demandeur. Creez d\'abord une demande depuis la creation du demandeur.';
+                return;
+            }
+
+            document.getElementById('typeDemandeIdHidden').value = payload.typeDemandeId;
+            document.getElementById('typeVisaIdHidden').value = payload.typeVisaId;
+            document.getElementById('typeProfilIdHidden').value = payload.typeProfilId == null ? '' : payload.typeProfilId;
+            document.getElementById('typeDemandeLibelleView').value = payload.typeDemandeLibelle;
+            document.getElementById('typeVisaLibelleView').value = payload.typeVisaLibelle;
+            document.getElementById('typeProfilLibelleView').value = payload.typeProfilLibelle;
+
+            typeInfosHint.textContent = 'Informations recuperees automatiquement depuis ce demandeur.';
+
+            submitBtn.disabled = false;
+        })
+        .catch(function() {
+            typeInfosHint.textContent = 'Erreur lors de la recuperation des informations de type.';
+        });
+}
+
+function resetTypeFields() {
+    document.getElementById('typeDemandeIdHidden').value = '';
+    document.getElementById('typeVisaIdHidden').value = '';
+    document.getElementById('typeProfilIdHidden').value = '';
+    document.getElementById('typeDemandeLibelleView').value = '-';
+    document.getElementById('typeVisaLibelleView').value = '-';
+    document.getElementById('typeProfilLibelleView').value = '-';
 }
 </script>
 

@@ -132,15 +132,55 @@
 
                 <!-- SECTION: VISA Transformable -->
                 <div class="form-section">
-                    <div class="form-section-title">🌐 VISA Transformable (optionnel)</div>
+                    <div class="form-section-title">🌐 VISA Transformable</div>
                     <div class="alert alert-info mb-2">
-                        ℹ️ Si le demandeur possède un VISA transformable obtenu à l'étranger, renseignez sa référence ci-dessous.
+                        ℹ️ Requis pour creer la demande initiale et associer les pieces justificatives.
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Numéro de référence du VISA transformable</label>
-                            <input type="text" name="numeroReferenceVisa" class="form-control" placeholder="Ex: VT-2024-001234">
+                            <label class="form-label">Numéro de référence du VISA transformable <span class="required">*</span></label>
+                            <input type="text" name="numeroReferenceVisa" class="form-control" placeholder="Ex: VT-2024-001234" required>
                         </div>
+                    </div>
+                </div>
+
+                <!-- SECTION: Demande initiale + pieces -->
+                <div class="form-section">
+                    <div class="form-section-title">📋 Demande initiale et pieces justificatives</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Type de demande <span class="required">*</span></label>
+                            <select name="typeDemandeId" id="typeDemandeSelect" class="form-control" required onchange="loadPiecesJustificatives()">
+                                <option value="">-- Selectionnez --</option>
+                                <c:forEach var="td" items="${typesDemande}">
+                                    <option value="${td.id}">${td.libelle}</option>
+                                </c:forEach>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Type de VISA demande <span class="required">*</span></label>
+                            <select name="typeVisaId" id="typeVisaSelect" class="form-control" required onchange="loadPiecesJustificatives()">
+                                <option value="">-- Selectionnez --</option>
+                                <c:forEach var="tv" items="${typesVisa}">
+                                    <option value="${tv.id}">${tv.libelle}</option>
+                                </c:forEach>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Profil (optionnel)</label>
+                            <select name="typeProfilId" class="form-control">
+                                <option value="">-- Aucun --</option>
+                                <c:forEach var="tp" items="${typesProfil}">
+                                    <option value="${tp.id}">${tp.libelle}</option>
+                                </c:forEach>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="piecesContainer" class="checklist-box mt-2">
+                        <div class="text-muted">Selectionnez d'abord le type de demande et le type de VISA.</div>
                     </div>
                 </div>
 
@@ -154,5 +194,47 @@
     </form>
 
 </div>
+
+<script>
+function loadPiecesJustificatives() {
+    var typeDemandeId = document.getElementById('typeDemandeSelect').value;
+    var typeVisaId = document.getElementById('typeVisaSelect').value;
+    var container = document.getElementById('piecesContainer');
+
+    if (!typeDemandeId || !typeVisaId) {
+        container.innerHTML = '<div class="text-muted">Selectionnez d\'abord le type de demande et le type de VISA.</div>';
+        return;
+    }
+
+    fetch('${pageContext.request.contextPath}/demandeurs/pieces-justificatives?typeDemandeId=' + typeDemandeId + '&typeVisaId=' + typeVisaId)
+        .then(function(response) { return response.json(); })
+        .then(function(pieces) {
+            if (!pieces || pieces.length === 0) {
+                container.innerHTML = '<div class="alert alert-warning">Aucune piece justificative configuree pour cette combinaison.</div>';
+                return;
+            }
+
+            var html = '<div class="checklist-title">Pieces justificatives a cocher</div>';
+            html += '<div class="checklist-help">Les pieces marquees <strong>(Obligatoire)</strong> doivent etre cochees pour valider la creation.</div>';
+            html += '<div class="checklist-list">';
+
+            for (var i = 0; i < pieces.length; i++) {
+                var p = pieces[i];
+                var requiredAttr = p.obligatoire ? ' required' : '';
+                var labelSuffix = p.obligatoire ? ' <span class="required">(Obligatoire)</span>' : ' <span class="text-muted">(Optionnel)</span>';
+                html += '<label class="check-item">';
+                html += '<input type="checkbox" name="pieceIds" value="' + p.id + '"' + requiredAttr + ' />';
+                html += '<span>' + p.libelle + labelSuffix + '</span>';
+                html += '</label>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+        })
+        .catch(function() {
+            container.innerHTML = '<div class="alert alert-error">Erreur lors du chargement des pieces justificatives.</div>';
+        });
+}
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

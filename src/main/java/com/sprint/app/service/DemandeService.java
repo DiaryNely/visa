@@ -1,25 +1,33 @@
 package com.sprint.app.service;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sprint.app.entity.Demande;
+import com.sprint.app.entity.DemandePiece;
 import com.sprint.app.entity.Demandeur;
+import com.sprint.app.entity.PieceJustificative;
 import com.sprint.app.entity.StatutDemande;
 import com.sprint.app.entity.TypeDemande;
 import com.sprint.app.entity.TypeProfil;
 import com.sprint.app.entity.TypeVisa;
 import com.sprint.app.entity.VisaTransformable;
+import com.sprint.app.repository.DemandePieceRepository;
 import com.sprint.app.repository.DemandeRepository;
 import com.sprint.app.repository.DemandeurRepository;
+import com.sprint.app.repository.PieceJustificativeRepository;
 import com.sprint.app.repository.StatutDemandeRepository;
 import com.sprint.app.repository.TypeDemandeRepository;
 import com.sprint.app.repository.TypeProfilRepository;
@@ -50,6 +58,12 @@ public class DemandeService {
     @Autowired
     private DemandeurRepository demandeurRepository;
 
+    @Autowired
+    private PieceJustificativeRepository pieceJustificativeRepository;
+
+    @Autowired
+    private DemandePieceRepository demandePieceRepository;
+
     // ==================== CRUD ====================
 
     public List<Demande> findAll() {
@@ -66,6 +80,10 @@ public class DemandeService {
 
     public List<Demande> findByDemandeurId(Integer demandeurId) {
         return demandeRepository.findByDemandeurId(demandeurId);
+    }
+
+    public Optional<Demande> findDerniereDemandeParDemandeur(Integer demandeurId) {
+        return demandeRepository.findTopByDemandeurIdOrderByDateDemandeDesc(demandeurId);
     }
 
     // ==================== CRÉATION ====================
@@ -265,5 +283,72 @@ public class DemandeService {
 
     public List<TypeProfil> getAllTypesProfil() {
         return typeProfilRepository.findAll();
+    }
+
+    // ==================== PIECES JUSTIFICATIVES ====================
+
+    public List<PieceJustificative> getPiecesJustificatives(Integer typeDemandeId, Integer typeVisaId) {
+        TypeVisa typeVisa = typeVisaRepository.findById(typeVisaId)
+                .orElseThrow(() -> new IllegalStateException("Type de VISA introuvable"));
+
+        String visaNormalise = normalize(typeVisa.getLibelle());
+        String profilAttendu = visaNormalise.contains("travailleur") ? "travailleur" : "etudiant";
+
+        List<PieceJustificative> pieces = pieceJustificativeRepository
+                .findByTypeDemandeIdOrderByObligatoireDescLibelleAsc(typeDemandeId);
+
+        return pieces.stream()
+                .filter(piece -> {
+                    if (piece.getTypeProfil() == null) {
+                        return true;
+                    }
+                    String profilNormalise = normalize(piece.getTypeProfil().getLibelle());
+                    return profilNormalise.contains(profilAttendu);
+                })
+                .toList();
+    }
+
+    @Transactional
+    public void enregistrerPiecesPourDemande(Demande demande, List<Integer> pieceIdsCochees) {
+        List<PieceJustificative> piecesAttendues = getPiecesJustificatives(
+                demande.getTypeDemande().getId(),
+                demande.getTypeVisa().getId());
+
+        Set<Integer> idsCoches = pieceIdsCochees == null
+                ? new HashSet<>()
+                : new HashSet<>(pieceIdsCochees);
+
+        List<String> obligatoiresManquantes = piecesAttendues.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getObligatoire()) && !idsCoches.contains(p.getId()))
+                .map(PieceJustificative::getLibelle)
+                .toList();
+
+        if (!obligatoiresManquantes.isEmpty()) {
+            throw new IllegalStateException(
+                    "Pieces justificatives obligatoires manquantes: " + String.join(", ", obligatoiresManquantes));
+        }
+
+        List<DemandePiece> demandePieces = new ArrayList<>();
+        for (PieceJustificative piece : piecesAttendues) {
+            DemandePiece dp = new DemandePiece();
+            dp.setDemande(demande);
+            dp.setPiece(piece);
+
+            boolean fournie = idsCoches.contains(piece.getId());
+            dp.setFournie(fournie);
+            dp.setDateFourniture(fournie ? LocalDate.now() : null);
+            demandePieces.add(dp);
+        }
+
+        demandePieceRepository.saveAll(demandePieces);
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return normalized.toLowerCase();
     }
 }

@@ -1,16 +1,31 @@
 package com.sprint.app.controller;
 
-import com.sprint.app.entity.*;
-import com.sprint.app.service.DemandeurService;
-import com.sprint.app.service.DemandeService;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.time.LocalDate;
-import java.util.List;
+import com.sprint.app.entity.Demande;
+import com.sprint.app.entity.Demandeur;
+import com.sprint.app.entity.Nationalite;
+import com.sprint.app.entity.Passeport;
+import com.sprint.app.entity.PieceJustificative;
+import com.sprint.app.entity.SituationFamiliale;
+import com.sprint.app.entity.VisaTransformable;
+import com.sprint.app.service.DemandeService;
+import com.sprint.app.service.DemandeurService;
 
 @Controller
 @RequestMapping("/demandeurs")
@@ -46,8 +61,28 @@ public class DemandeurController {
     public String formulaireNouveau(Model model) {
         model.addAttribute("nationalites", demandeurService.getAllNationalites());
         model.addAttribute("situationsFamiliales", demandeurService.getAllSituationsFamiliales());
+        model.addAttribute("typesDemande", demandeService.getAllTypesDemande());
+        model.addAttribute("typesVisa", demandeService.getAllTypesVisa());
+        model.addAttribute("typesProfil", demandeService.getAllTypesProfil());
         model.addAttribute("activePage", "demandeurs");
         return "demandeurs/form";
+    }
+
+    @GetMapping("/pieces-justificatives")
+    @ResponseBody
+    public List<Map<String, Object>> getPiecesJustificatives(
+            @RequestParam Integer typeDemandeId,
+            @RequestParam Integer typeVisaId) {
+        List<PieceJustificative> pieces = demandeService.getPiecesJustificatives(typeDemandeId, typeVisaId);
+        List<Map<String, Object>> payload = new ArrayList<>();
+        for (PieceJustificative piece : pieces) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", piece.getId());
+            item.put("libelle", piece.getLibelle());
+            item.put("obligatoire", piece.getObligatoire());
+            payload.add(item);
+        }
+        return payload;
     }
 
     /**
@@ -55,25 +90,30 @@ public class DemandeurController {
      */
     @PostMapping("/nouveau")
     public String creerDemandeur(@RequestParam String nom,
-                                  @RequestParam String prenom,
-                                  @RequestParam(required = false) String nomJeuneFille,
-                                  @RequestParam(required = false) String nomPere,
-                                  @RequestParam String dateNaissance,
-                                  @RequestParam String lieuNaissance,
-                                  @RequestParam(required = false) String profession,
-                                  @RequestParam String telephone,
-                                  @RequestParam String email,
-                                  @RequestParam String adresse,
-                                  @RequestParam Integer nationaliteId,
-                                  @RequestParam Integer situationFamilialeId,
-                                  // Passeport
-                                  @RequestParam String numeroPasse,
-                                  @RequestParam String dateDelivrancePasse,
-                                  @RequestParam String dateExpirationPasse,
-                                  @RequestParam(required = false) String paysDelivrance,
-                                  // Visa transformable
-                                  @RequestParam(required = false) String numeroReferenceVisa,
-                                  RedirectAttributes redirectAttributes) {
+            @RequestParam String prenom,
+            @RequestParam(required = false) String nomJeuneFille,
+            @RequestParam(required = false) String nomPere,
+            @RequestParam String dateNaissance,
+            @RequestParam String lieuNaissance,
+            @RequestParam(required = false) String profession,
+            @RequestParam String telephone,
+            @RequestParam String email,
+            @RequestParam String adresse,
+            @RequestParam Integer nationaliteId,
+            @RequestParam Integer situationFamilialeId,
+            // Demande initiale + pieces justificatives
+            @RequestParam(required = false) Integer typeDemandeId,
+            @RequestParam(required = false) Integer typeVisaId,
+            @RequestParam(required = false) Integer typeProfilId,
+            @RequestParam(required = false) List<Integer> pieceIds,
+            // Passeport
+            @RequestParam String numeroPasse,
+            @RequestParam String dateDelivrancePasse,
+            @RequestParam String dateExpirationPasse,
+            @RequestParam(required = false) String paysDelivrance,
+            // Visa transformable
+            @RequestParam(required = false) String numeroReferenceVisa,
+            RedirectAttributes redirectAttributes) {
         try {
             // Créer le demandeur
             Demandeur demandeur = new Demandeur();
@@ -110,12 +150,32 @@ public class DemandeurController {
             passeport = demandeurService.savePasseport(passeport);
 
             // Créer le visa transformable si fourni
+            VisaTransformable visaTransformableCree = null;
             if (numeroReferenceVisa != null && !numeroReferenceVisa.trim().isEmpty()) {
                 VisaTransformable vt = new VisaTransformable();
                 vt.setDemandeur(demandeur);
                 vt.setPasseport(passeport);
                 vt.setNumeroReference(numeroReferenceVisa.trim());
-                demandeurService.saveVisaTransformable(vt);
+                visaTransformableCree = demandeurService.saveVisaTransformable(vt);
+            }
+
+            // Creer une demande initiale avec pieces justificatives si les types sont
+            // fournis.
+            if (typeDemandeId != null && typeVisaId != null) {
+                if (visaTransformableCree == null) {
+                    throw new IllegalStateException(
+                            "Le numero de reference du VISA transformable est obligatoire pour creer la demande initiale");
+                }
+
+                Demande demande = demandeService.creerDemande(
+                        demandeur.getId(),
+                        typeDemandeId,
+                        typeVisaId,
+                        typeProfilId,
+                        visaTransformableCree.getId(),
+                        "Demande initiale creee lors de l enregistrement du demandeur");
+
+                demandeService.enregistrerPiecesPourDemande(demande, pieceIds);
             }
 
             redirectAttributes.addFlashAttribute("success",
