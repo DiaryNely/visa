@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VISA Management - Ministère de l'Intérieur</title>
     <meta name="description" content="Système de gestion des demandes de VISA transformable - Ministère de l'Intérieur">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/admin.css">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/admin.css?v=20260423a">
 </head>
 <body>
 <div class="admin-wrapper">
