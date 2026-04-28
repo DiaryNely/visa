@@ -113,6 +113,9 @@ public class DemandeurController {
             @RequestParam(required = false) String paysDelivrance,
             // Visa transformable
             @RequestParam(required = false) String numeroReferenceVisa,
+            @RequestParam(required = false) String dateEntreeVisa,
+            @RequestParam(required = false) String lieuEntreeVisa,
+            @RequestParam(required = false) String dateExpirationVisa,
             RedirectAttributes redirectAttributes) {
         try {
             // Créer le demandeur
@@ -152,10 +155,20 @@ public class DemandeurController {
             // Créer le visa transformable si fourni
             VisaTransformable visaTransformableCree = null;
             if (numeroReferenceVisa != null && !numeroReferenceVisa.trim().isEmpty()) {
+                if (dateEntreeVisa == null || dateEntreeVisa.trim().isEmpty()
+                        || lieuEntreeVisa == null || lieuEntreeVisa.trim().isEmpty()
+                        || dateExpirationVisa == null || dateExpirationVisa.trim().isEmpty()) {
+                    throw new IllegalStateException(
+                            "Date d entree, lieu d entree et date d expiration du VISA transformable sont obligatoires");
+                }
+
                 VisaTransformable vt = new VisaTransformable();
                 vt.setDemandeur(demandeur);
                 vt.setPasseport(passeport);
                 vt.setNumeroReference(numeroReferenceVisa.trim());
+                vt.setDateEntree(LocalDate.parse(dateEntreeVisa));
+                vt.setLieuEntree(lieuEntreeVisa.trim());
+                vt.setDateExpiration(LocalDate.parse(dateExpirationVisa));
                 visaTransformableCree = demandeurService.saveVisaTransformable(vt);
             }
 
@@ -182,7 +195,7 @@ public class DemandeurController {
                     "Demandeur " + demandeur.getNomComplet() + " créé avec succès");
             return "redirect:/demandeurs/" + demandeur.getId();
 
-        } catch (Exception e) {
+        } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("error", "Erreur : " + e.getMessage());
             return "redirect:/demandeurs/nouveau";
         }
