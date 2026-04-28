@@ -87,6 +87,9 @@ CREATE TABLE Demande (
     date_traitement DATE,
     observations TEXT,
     motif_rejet TEXT,
+    statut_scan VARCHAR(30) NOT NULL DEFAULT 'EN_COURS_DE_SCAN' CHECK (statut_scan IN ('EN_COURS_DE_SCAN', 'SCAN_TERMINE', 'DOSSIER_VERROUILLE')),
+    est_verrouille BOOLEAN NOT NULL DEFAULT FALSE,
+    date_scan_termine DATE,
     FOREIGN KEY (id_type_demande) REFERENCES Type_demande(id),
     FOREIGN KEY (id_type_profil) REFERENCES Type_profil(id),
     FOREIGN KEY (id_demandeur) REFERENCES Demandeur(id),
@@ -158,6 +161,9 @@ CREATE TABLE Demande_piece (
     id_piece INTEGER NOT NULL,
     fournie BOOLEAN NOT NULL DEFAULT FALSE,
     date_fourniture DATE,
+    statut_scan VARCHAR(30) NOT NULL DEFAULT 'EN_ATTENTE' CHECK (statut_scan IN ('EN_ATTENTE', 'SCANNEE')),
+    date_scan DATE,
+    chemin_fichier VARCHAR(255),
     FOREIGN KEY (id_demande) REFERENCES Demande(id),
     FOREIGN KEY (id_piece) REFERENCES Piece_justificative(id)
 );

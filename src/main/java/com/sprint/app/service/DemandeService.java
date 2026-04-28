@@ -181,6 +181,9 @@ public class DemandeService {
         Demande demande = demandeRepository.findById(demandeId)
                 .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
 
+        // Vérifier que le dossier n'est pas verrouillé
+        verifyDemandeCanBeModified(demande);
+
         if (!"brouillon".equals(demande.getStatut())) {
             throw new IllegalStateException("Seule une demande en brouillon peut être soumise");
         }
@@ -205,6 +208,9 @@ public class DemandeService {
 
         Demande demande = demandeRepository.findById(demandeId)
                 .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        // Vérifier que le dossier n'est pas verrouillé
+        verifyDemandeCanBeModified(demande);
 
         String statutActuel = demande.getStatut();
 
@@ -310,6 +316,9 @@ public class DemandeService {
 
     @Transactional
     public void enregistrerPiecesPourDemande(Demande demande, List<Integer> pieceIdsCochees) {
+        // Vérifier que le dossier n'est pas verrouillé
+        verifyDemandeCanBeModified(demande);
+
         List<PieceJustificative> piecesAttendues = getPiecesJustificatives(
                 demande.getTypeDemande().getId(),
                 demande.getTypeVisa().getId());
@@ -351,4 +360,142 @@ public class DemandeService {
                 .replaceAll("\\p{M}", "");
         return normalized.toLowerCase();
     }
+
+    // ==================== GESTION DU SCAN ====================
+
+    /**
+     * Vérifier si une demande peut être modifiée.
+     * Les demandes verrouillées (estVerrouille=true) ne peuvent pas être modifiées.
+     */
+    private void verifyDemandeCanBeModified(Demande demande) throws IllegalStateException {
+        if (Boolean.TRUE.equals(demande.getEstVerrouille())) {
+            throw new IllegalStateException("Le dossier est verrouillé, aucune modification n'est possible");
+        }
+    }
+
+    /**
+     * Vérifier si toutes les pièces justificatives sont scannées.
+     */
+    public boolean toutesLesPieceSontScannees(Integer demandeId) {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        List<DemandePiece> pieces = demandePieceRepository.findByDemandeId(demandeId);
+        
+        if (pieces.isEmpty()) {
+            return false; // Aucune pièce = pas scanné
+        }
+
+        return pieces.stream()
+                .allMatch(p -> "SCANNEE".equals(p.getStatutScan()));
+    }
+
+    /**
+     * Marquer une pièce justificative comme scannée.
+     */
+    @Transactional
+    public DemandePiece marquerPieceCommeScannee(Integer demandePieceId, String cheminFichier)
+            throws IllegalStateException {
+        DemandePiece demandePiece = demandePieceRepository.findById(demandePieceId)
+                .orElseThrow(() -> new IllegalStateException("Pièce demande introuvable"));
+
+        Demande demande = demandePiece.getDemande();
+        verifyDemandeCanBeModified(demande);
+
+        demandePiece.setStatutScan("SCANNEE");
+        demandePiece.setDateScan(LocalDate.now());
+        demandePiece.setCheminFichier(cheminFichier);
+
+        return demandePieceRepository.save(demandePiece);
+    }
+
+    /**
+     * Terminer le scan et verrouiller le dossier.
+     */
+    @Transactional
+    public Demande terminerScanEtVerrouiller(Integer demandeId) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        if (!toutesLesPieceSontScannees(demandeId)) {
+            throw new IllegalStateException("Toutes les pièces justificatives doivent être scannées avant de terminer le scan");
+        }
+
+        demande.setStatutScan("SCAN_TERMINE");
+        demande.setDateScanTermine(LocalDate.now());
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Verrouiller complètement le dossier (après validation du scan).
+     */
+    @Transactional
+    public Demande verrouilleDossier(Integer demandeId) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        if (!"SCAN_TERMINE".equals(demande.getStatutScan())) {
+            throw new IllegalStateException("Le scan doit être terminé avant de verrouiller le dossier");
+        }
+
+        demande.setEstVerrouille(true);
+        demande.setStatutScan("DOSSIER_VERROUILLE");
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Déverrouiller un dossier (ADMIN ONLY - en cas de correction nécessaire).
+     */
+    @Transactional
+    public Demande deverrouillirDossier(Integer demandeId) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        if (!Boolean.TRUE.equals(demande.getEstVerrouille())) {
+            throw new IllegalStateException("Le dossier n'est pas verrouillé");
+        }
+
+        demande.setEstVerrouille(false);
+        demande.setStatutScan("EN_COURS_DE_SCAN");
+        demande.setDateScanTermine(null);
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Changer l'état de verrouillage d'un dossier (ADMIN).
+     * true = verrouillé (aucune modification)
+     * false = déverrouillé (modifications autorisées)
+     */
+    @Transactional
+    public Demande changerVerrouillage(Integer demandeId, Boolean estVerrouille) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        demande.setEstVerrouille(estVerrouille != null && estVerrouille);
+        
+        if (Boolean.TRUE.equals(estVerrouille)) {
+            demande.setStatutScan("DOSSIER_VERROUILLE");
+            demande.setDateScanTermine(LocalDate.now());
+        } else {
+            demande.setStatutScan("EN_COURS_DE_SCAN");
+            demande.setDateScanTermine(null);
+        }
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Récupérer toutes les pièces d'une demande avec leur statut de scan.
+     */
+    public List<DemandePiece> getPiecesDemande(Integer demandeId) {
+        return demandePieceRepository.findByDemandeId(demandeId);
+    }
+
+    /**
+     * Récupérer une pièce justificative par son ID.
+     */
+    // Méthodes d'édition des pièces désactivées car l'UI d'édition a été retirée.
 }
