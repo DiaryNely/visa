@@ -1,8 +1,17 @@
 package com.sprint.app.entity;
 
-import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "demande")
@@ -50,7 +59,17 @@ public class Demande {
     @Column(name = "motif_rejet", columnDefinition = "TEXT")
     private String motifRejet;
 
-    public Demande() {}
+    // Sprint 2 - Duplicata fields
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_motif_duplicata")
+    private MotifDuplicate motifDuplicate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_type_duplicata")
+    private TypeDuplicate typeDuplicate;
+
+    @Column(name = "nouveau_numero_passeport", length = 50)
+    private String nouveauNumeroPasseport;
 
     // Getters & Setters
     public Integer getId() { return id; }
@@ -89,6 +108,16 @@ public class Demande {
     public String getMotifRejet() { return motifRejet; }
     public void setMotifRejet(String motifRejet) { this.motifRejet = motifRejet; }
 
+    // Sprint 2 - Duplicata getters & setters
+    public MotifDuplicate getMotifDuplicate() { return motifDuplicate; }
+    public void setMotifDuplicate(MotifDuplicate motifDuplicate) { this.motifDuplicate = motifDuplicate; }
+
+    public TypeDuplicate getTypeDuplicate() { return typeDuplicate; }
+    public void setTypeDuplicate(TypeDuplicate typeDuplicate) { this.typeDuplicate = typeDuplicate; }
+
+    public String getNouveauNumeroPasseport() { return nouveauNumeroPasseport; }
+    public void setNouveauNumeroPasseport(String nouveauNumeroPasseport) { this.nouveauNumeroPasseport = nouveauNumeroPasseport; }
+
     public String getStatutLabel() {
         if (statut == null) return "";
         return switch (statut) {
@@ -96,6 +125,7 @@ public class Demande {
             case "soumise" -> "Soumise";
             case "en_cours" -> "En cours";
             case "validee" -> "Validée";
+            case "approuvee" -> "Approuvée";
             case "rejetee" -> "Rejetée";
             default -> statut;
         };
@@ -108,6 +138,7 @@ public class Demande {
             case "soumise" -> "badge-info";
             case "en_cours" -> "badge-warning";
             case "validee" -> "badge-success";
+            case "approuvee" -> "badge-success";
             case "rejetee" -> "badge-danger";
             default -> "badge-secondary";
         };
