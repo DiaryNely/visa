@@ -68,7 +68,9 @@ public class Demande {
     @Column(name = "date_scan_termine")
     private LocalDate dateScanTermine;
 
-    public Demande() {}
+    public Demande() {
+    }
+
     // Sprint 2 - Duplicata fields
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_motif_duplicata")
@@ -85,9 +87,6 @@ public class Demande {
 
     @Column(name = "qr_code_image_base64", columnDefinition = "TEXT")
     private String qrCodeImageBase64;
-
-    public Demande() {
-    }
 
     // Getters & Setters
     public Integer getId() {
@@ -203,23 +202,53 @@ public class Demande {
     }
 
     // Sprint 2 - Duplicata getters & setters
-    public MotifDuplicate getMotifDuplicate() { return motifDuplicate; }
-    public void setMotifDuplicate(MotifDuplicate motifDuplicate) { this.motifDuplicate = motifDuplicate; }
+    public MotifDuplicate getMotifDuplicate() {
+        return motifDuplicate;
+    }
 
-    public TypeDuplicate getTypeDuplicate() { return typeDuplicate; }
-    public void setTypeDuplicate(TypeDuplicate typeDuplicate) { this.typeDuplicate = typeDuplicate; }
+    public void setMotifDuplicate(MotifDuplicate motifDuplicate) {
+        this.motifDuplicate = motifDuplicate;
+    }
 
-    public String getNouveauNumeroPasseport() { return nouveauNumeroPasseport; }
-    public void setNouveauNumeroPasseport(String nouveauNumeroPasseport) { this.nouveauNumeroPasseport = nouveauNumeroPasseport; }
+    public TypeDuplicate getTypeDuplicate() {
+        return typeDuplicate;
+    }
 
-    public String getStatutScan() { return statutScan; }
-    public void setStatutScan(String statutScan) { this.statutScan = statutScan; }
+    public void setTypeDuplicate(TypeDuplicate typeDuplicate) {
+        this.typeDuplicate = typeDuplicate;
+    }
 
-    public Boolean getEstVerrouille() { return estVerrouille; }
-    public void setEstVerrouille(Boolean estVerrouille) { this.estVerrouille = estVerrouille; }
+    public String getNouveauNumeroPasseport() {
+        return nouveauNumeroPasseport;
+    }
 
-    public LocalDate getDateScanTermine() { return dateScanTermine; }
-    public void setDateScanTermine(LocalDate dateScanTermine) { this.dateScanTermine = dateScanTermine; }
+    public void setNouveauNumeroPasseport(String nouveauNumeroPasseport) {
+        this.nouveauNumeroPasseport = nouveauNumeroPasseport;
+    }
+
+    public String getStatutScan() {
+        return statutScan;
+    }
+
+    public void setStatutScan(String statutScan) {
+        this.statutScan = statutScan;
+    }
+
+    public Boolean getEstVerrouille() {
+        return estVerrouille;
+    }
+
+    public void setEstVerrouille(Boolean estVerrouille) {
+        this.estVerrouille = estVerrouille;
+    }
+
+    public LocalDate getDateScanTermine() {
+        return dateScanTermine;
+    }
+
+    public void setDateScanTermine(LocalDate dateScanTermine) {
+        this.dateScanTermine = dateScanTermine;
+    }
 
     public String getStatutLabel() {
         if (statut == null)
@@ -250,7 +279,8 @@ public class Demande {
     }
 
     public String getStatutScanLabel() {
-        if (statutScan == null) return "";
+        if (statutScan == null)
+            return "";
         return switch (statutScan) {
             case "EN_COURS_DE_SCAN" -> "En cours de scan";
             case "SCAN_TERMINE" -> "Scan terminé";
@@ -260,7 +290,8 @@ public class Demande {
     }
 
     public String getStatutScanBadgeClass() {
-        if (statutScan == null) return "badge-secondary";
+        if (statutScan == null)
+            return "badge-secondary";
         return switch (statutScan) {
             case "EN_COURS_DE_SCAN" -> "badge-info";
             case "SCAN_TERMINE" -> "badge-warning";

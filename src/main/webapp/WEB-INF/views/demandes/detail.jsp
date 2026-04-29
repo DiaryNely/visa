@@ -26,160 +26,163 @@
     </c:if>
 
     <!-- STATUS + ACTIONS BAR -->
-    <div class="action-bar mb-3">
-        <div class="action-bar-left">
-            <span class="badge ${demande.statutBadgeClass}" style="font-size: 0.9rem; padding: 8px 16px;">
-                ${demande.statutLabel}
-            </span>
-            <c:if test="${demande.sansDonnees}">
-                <span class="badge badge-warning" style="font-size: 0.85rem; padding: 6px 14px;">
-                    📌 Sans données antérieures
-                </span>
-            </c:if>
-        </div>
-        <div class="action-bar-right">
-            <c:if test="${demande.statut == 'brouillon'}">
-                <form action="${pageContext.request.contextPath}/demandes/${demande.id}/statut" method="post" style="display:inline;">
-                    <input type="hidden" name="nouveauStatut" value="soumise">
-                    <button type="submit" class="btn btn-primary">📤 Soumettre</button>
-                </form>
-            </c:if>
-            <c:if test="${demande.statut == 'soumise'}">
-                <form action="${pageContext.request.contextPath}/demandes/${demande.id}/statut" method="post" style="display:inline;">
-                    <input type="hidden" name="nouveauStatut" value="en_cours">
-                    <button type="submit" class="btn btn-warning">⏳ Mettre en traitement</button>
-                </form>
-            </c:if>
-            <c:if test="${demande.statut == 'en_cours'}">
-                <form action="${pageContext.request.contextPath}/demandes/${demande.id}/statut" method="post" style="display:inline;">
-                    <input type="hidden" name="nouveauStatut" value="validee">
-                    <button type="submit" class="btn btn-success">✅ Valider</button>
-                </form>
-                <button type="button" class="btn btn-danger" onclick="openModal('rejectModal')">❌ Rejeter</button>
-            </c:if>
-            <c:if test="${demande.statut == 'soumise'}">
-                <button type="button" class="btn btn-danger" onclick="openModal('rejectModal')">❌ Rejeter</button>
-            </c:if>
-        </div>
-    </div>
+    <script>
+        function loadPieces() {
+            var demandeId = ${demande.id};
+            var url = '${pageContext.request.contextPath}/demandes/' + demandeId + '/pieces';
 
-    <div class="detail-grid">
+            console.log('Chargement des pièces depuis:', url);
 
-        <!-- INFOS DEMANDE -->
-        <div class="card">
-            <div class="card-header">
-                <h3>📋 Informations de la demande</h3>
-            </div>
-            <div class="card-body">
-                <div class="detail-item">
-                    <div class="label">Type de demande</div>
-                    <div class="value">${demande.typeDemande.libelle}</div>
-                </div>
-                <div class="detail-item">
-                    <div class="label">Type de VISA demandé</div>
-                    <div class="value">${demande.typeVisa.libelle} (${demande.typeVisa.dureeValidite} mois)</div>
-                </div>
-                <c:if test="${demande.typeProfil != null}">
-                    <div class="detail-item">
-                        <div class="label">Profil</div>
-                        <div class="value">${demande.typeProfil.libelle}</div>
-                    </div>
-                </c:if>
-                <div class="detail-item">
-                    <div class="label">Date de demande</div>
-                    <div class="value">
-                        <fmt:parseDate value="${demande.dateDemande}" pattern="yyyy-MM-dd'T'HH:mm" var="parsedDate" type="both" />
-                        <fmt:formatDate value="${parsedDate}" pattern="dd/MM/yyyy à HH:mm" />
-                    </div>
-                </div>
-                <c:if test="${demande.dateTraitement != null}">
-                    <div class="detail-item">
-                        <div class="label">Date de traitement</div>
-                        <div class="value">
-                            <fmt:parseDate value="${demande.dateTraitement}" pattern="yyyy-MM-dd" var="parsedTraitement" type="date" />
-                            <fmt:formatDate value="${parsedTraitement}" pattern="dd/MM/yyyy" />
-                        </div>
-                    </div>
-                </c:if>
-                <c:if test="${not empty demande.observations}">
-                    <div class="detail-item">
-                        <div class="label">Observations</div>
-                        <div class="value">${demande.observations}</div>
-                    </div>
-                </c:if>
-                <c:if test="${not empty demande.motifRejet}">
-                    <div class="detail-item">
-                        <div class="label">Motif de rejet</div>
-                        <div class="value text-danger">${demande.motifRejet}</div>
-                    </div>
-                </c:if>
-            </div>
-        </div>
+            fetch(url)
+                .then(function(response) {
+                    console.log('Réponse reçue:', response.status);
+                    return response.json();
+                })
+                .then(function(pieces) {
+                    console.log('Pièces chargées:', pieces);
 
-        <!-- INFOS DEMANDEUR -->
-        <div class="card">
-            <div class="card-header">
-                <h3>👤 Demandeur</h3>
-            </div>
-            <div class="card-body">
-                <div class="detail-item">
-                    <div class="label">Nom complet</div>
-                    <div class="value">
-                        <a href="${pageContext.request.contextPath}/demandeurs/${demande.demandeur.id}">
-                            ${demande.demandeur.nomComplet}
-                        </a>
-                    </div>
-                </div>
-                <div class="detail-item">
-                    <div class="label">Nationalité</div>
-                    <div class="value">${demande.demandeur.nationalite.libelle}</div>
-                </div>
-                <div class="detail-item">
-                    <div class="label">Email</div>
-                    <div class="value">${demande.demandeur.email}</div>
-                </div>
-                <div class="detail-item">
-                    <div class="label">Téléphone</div>
-                    <div class="value">${demande.demandeur.telephone}</div>
-                </div>
-            </div>
-        </div>
+                    if (!pieces || pieces.length === 0) {
+                        document.getElementById('piecesList').innerHTML = '<p class="text-muted">Aucune pièce justificative.</p>';
+                        return;
+                    }
 
-    </div>
+                    var html = '<table style="width: 100%; border-collapse: collapse;">';
+                    html += '<thead><tr style="border-bottom: 1px solid #ddd;">';
+                    html += '<th style="text-align: left; padding: 10px;">Pièce</th>';
+                    html += '<th style="text-align: left; padding: 10px;">Obligatoire</th>';
+                    html += '<th style="text-align: left; padding: 10px;">Statut du scan</th>';
+                    html += '<th style="text-align: left; padding: 10px;">Date du scan</th>';
+                    html += '<th style="text-align: left; padding: 10px;">Actions</th>';
+                    html += '</tr></thead>';
+                    html += '<tbody>';
 
-    <!-- VISA TRANSFORMABLE -->
-    <c:if test="${demande.visaTransformable != null}">
-        <div class="card mt-3">
-            <div class="card-header">
-                <h3>🛂 VISA Transformable</h3>
-            </div>
-            <div class="card-body">
-                <div class="form-row">
-                    <div class="detail-item">
-                        <div class="label">Référence</div>
-                        <div class="value">${demande.visaTransformable.numeroReference}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="label">Passeport associé</div>
-                        <div class="value">${demande.visaTransformable.passeport.numeroPasse}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="label">Statut du VISA</div>
-                        <div class="value">
-                            <c:choose>
-                                <c:when test="${demande.visaTransformable.valide}">
-                                    <span class="badge badge-success">Valide</span>
-                                </c:when>
-                                <c:otherwise>
-                                    <span class="badge badge-danger">Expiré / Invalide</span>
-                                </c:otherwise>
-                            </c:choose>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </c:if>
+                    var toutScanne = true;
+                    for (var i = 0; i < pieces.length; i++) {
+                        var p = pieces[i];
+                        console.log('Pièce', i, ':', p);
+
+                        var statutClass = 'badge-warning';
+                        var statutLabel = p.statutScan === 'SCANNEE' ? 'Scannée' : 'En attente';
+                        if (p.statutScan === 'SCANNEE') {
+                            statutClass = 'badge-success';
+                        } else {
+                            toutScanne = false;
+                        }
+
+                        html += '<tr style="border-bottom: 1px solid #eee;">';
+                        html += '<td style="padding: 10px;">' + (p.piece ? p.piece.libelle : 'N/A') + '</td>';
+                        html += '<td style="padding: 10px;">' + (p.piece && p.piece.obligatoire ? 'Oui' : 'Non') + '</td>';
+                        html += '<td style="padding: 10px;"><span class="badge ' + statutClass + '">' + statutLabel + '</span></td>';
+                        html += '<td style="padding: 10px;">' + (p.dateScan ? p.dateScan : '-') + '</td>';
+                        html += '<td style="padding: 10px;">';
+                        // Tant que le dossier n'est pas verrouillé, permettre l'upload/modification des PDFs
+                        // - Pièces non scannées: toujours modifiables
+                        // - Pièces scannées: modifiables pendant le scan, mais pas après "Terminer scan"
+                        var dossierVerrouille = ${demande.estVerrouille} === true;
+                        var scanTermine = '${demande.statutScan}' === 'SCAN_TERMINE' || '${demande.statutScan}' === 'DOSSIER_VERROUILLE';
+                        var pieceNonScannee = p.statutScan !== 'SCANNEE';
+                        var peutModifier = !dossierVerrouille && (pieceNonScannee || !scanTermine);
+
+                        if (peutModifier) {
+                            html += '<form action="${pageContext.request.contextPath}/demandes/pieces/' + p.id + '/scan-ajax" method="post" enctype="multipart/form-data" style="display:inline;" onsubmit="return submitPieceScan(event, this, ' + p.id + ');">';
+                            html += '<input type="file" name="file" accept="application/pdf" style="display:inline; margin-right:6px;">';
+                            if (p.statutScan === 'SCANNEE') {
+                                html += '<button type="submit" class="btn btn-sm btn-primary">🔄 Rescanner</button>';
+                            } else {
+                                html += '<button type="submit" class="btn btn-sm btn-primary">📱 Scanner</button>';
+                            }
+                            html += '</form>';
+                            if (p.cheminFichier) {
+                                html += ' <a href="' + p.cheminFichier + '" target="_blank" class="btn btn-sm btn-outline">Voir</a>';
+                            }
+                        } else if (p.statutScan === 'SCANNEE') {
+                            html += '<span class="text-muted">✅ Scanné (non modifiable)</span>';
+                            if (p.cheminFichier) {
+                                html += ' <a href="' + p.cheminFichier + '" target="_blank" class="btn btn-sm btn-outline">Voir</a>';
+                            }
+                        } else {
+                            html += '<span class="text-muted">En attente</span>';
+                        }
+                        html += '</td>';
+                        html += '</tr>';
+                    }
+
+                    html += '</tbody>';
+                    html += '</table>';
+                    document.getElementById('piecesList').innerHTML = html;
+
+                    // Afficher le bouton "Terminer scan" de manière permanente pendant le scan
+                    console.log('Tout scanné?', toutScanne);
+                    if (pieces.length > 0 && !${demande.estVerrouille}) {
+                        document.getElementById('scanActions').style.display = 'block';
+                    } else {
+                        document.getElementById('scanActions').style.display = 'none';
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Erreur:', err);
+                    document.getElementById('piecesList').innerHTML = '<p class="alert alert-error">Erreur lors du chargement des pièces: ' + err.message + '</p>';
+                });
+        }
+
+        function showScanMessage(message, alertClass) {
+            var container = document.getElementById('scanMessage');
+            container.className = 'alert ' + alertClass;
+            container.textContent = message;
+            container.style.display = 'block';
+        }
+
+        function submitPieceScan(event, form, pieceId) {
+            event.preventDefault();
+
+            var fileInput = form.querySelector('input[type="file"]');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                showScanMessage('Veuillez choisir un fichier PDF avant de scanner la pièce.', 'alert-error');
+                return false;
+            }
+
+            // Client-side validation: file type and size
+            var file = fileInput.files[0];
+            var MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB - keep in sync with server config
+            if (file.size > MAX_UPLOAD_SIZE) {
+                showScanMessage('Le fichier est trop volumineux (max 10MB).', 'alert-error');
+                return false;
+            }
+
+            var formData = new FormData(form);
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error('Erreur lors de l\'upload du scan');
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                if (data && data.success) {
+                    showScanMessage(data.message || 'Pièce scannée avec succès.', 'alert-success');
+                    loadPieces();
+                } else {
+                    showScanMessage((data && data.message) ? data.message : 'Le scan a échoué.', 'alert-error');
+                }
+            })
+            .catch(function(err) {
+                console.error('Erreur upload scan:', err);
+                showScanMessage(err.message || 'Erreur lors du scan.', 'alert-error');
+            });
+
+            return false;
+        }
+
+        // Charger les pièces au chargement de la page
+        window.addEventListener('load', loadPieces);
+    </script>
 
     <!-- STATUT DE SCAN -->
     <div class="card mt-3">
@@ -213,6 +216,7 @@
                 </div>
             </c:if>
             <c:if test="${demande.estVerrouille != true}">
+                <div id="scanMessage" class="mb-2"></div>
                 <div id="piecesContainer" class="mt-3">
                     <h4>Pièces justificatives</h4>
                     <div id="piecesList" class="checklist-box">
@@ -305,25 +309,24 @@
                 html += '<th style="text-align: left; padding: 10px;">Pièce</th>';
                 html += '<th style="text-align: left; padding: 10px;">Obligatoire</th>';
                 html += '<th style="text-align: left; padding: 10px;">Statut du scan</th>';
-                html += '<th style="text-align: left; padding: 10px;">Date du scan</th>';
-                html += '<th style="text-align: left; padding: 10px;">Actions</th>';
-                html += '</tr></thead>';
-                html += '<tbody>';
+            // Client-side validation: file type and size
+            var file = fileInput.files[0];
+            var MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10MB - keep in sync with server config
+            if (file.size > MAX_UPLOAD_SIZE) {
+                showScanMessage('Le fichier est trop volumineux (max 10MB).', 'alert-error');
+                return false;
+            }
 
-                var toutScanne = true;
-                for (var i = 0; i < pieces.length; i++) {
-                    var p = pieces[i];
-                    console.log('Pièce', i, ':', p);
-                    
-                    var statutClass = 'badge-warning';
-                    var statutLabel = p.statutScan === 'SCANNEE' ? 'Scannée' : 'En attente';
-                    if (p.statutScan === 'SCANNEE') {
-                        statutClass = 'badge-success';
-                    } else {
-                        toutScanne = false;
-                    }
+            var formData = new FormData(form);
 
-                    html += '<tr style="border-bottom: 1px solid #eee;">';
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
                     html += '<td style="padding: 10px;">' + (p.piece ? p.piece.libelle : 'N/A') + '</td>';
                     html += '<td style="padding: 10px;">' + (p.piece && p.piece.obligatoire ? 'Oui' : 'Non') + '</td>';
                     html += '<td style="padding: 10px;"><span class="badge ' + statutClass + '">' + statutLabel + '</span></td>';
@@ -338,7 +341,7 @@
                     var peutModifier = !dossierVerrouille && (pieceNonScannee || !scanTermine);
                     
                     if (peutModifier) {
-                        html += '<form action="${pageContext.request.contextPath}/demandes/pieces/' + p.id + '/scan" method="post" enctype="multipart/form-data" style="display:inline;">';
+                        html += '<form action="${pageContext.request.contextPath}/demandes/pieces/' + p.id + '/scan-ajax" method="post" enctype="multipart/form-data" style="display:inline;" onsubmit="return submitPieceScan(event, this, ' + p.id + ');">';
                         html += '<input type="file" name="file" accept="application/pdf" style="display:inline; margin-right:6px;">';
                         if (p.statutScan === 'SCANNEE') {
                             html += '<button type="submit" class="btn btn-sm btn-primary">🔄 Rescanner</button>';
@@ -377,6 +380,53 @@
                 console.error('Erreur:', err);
                 document.getElementById('piecesList').innerHTML = '<p class="alert alert-error">Erreur lors du chargement des pièces: ' + err.message + '</p>';
             });
+    }
+
+    function showScanMessage(message, alertClass) {
+        var container = document.getElementById('scanMessage');
+        container.className = 'alert ' + alertClass;
+        container.textContent = message;
+        container.style.display = 'block';
+    }
+
+    function submitPieceScan(event, form, pieceId) {
+        event.preventDefault();
+
+        var fileInput = form.querySelector('input[type="file"]');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            showScanMessage('Veuillez choisir un fichier PDF avant de scanner la pièce.', 'alert-error');
+            return false;
+        }
+
+        var formData = new FormData(form);
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Erreur lors de l\'upload du scan');
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (data && data.success) {
+                showScanMessage(data.message || 'Pièce scannée avec succès.', 'alert-success');
+                loadPieces();
+            } else {
+                showScanMessage((data && data.message) ? data.message : 'Le scan a échoué.', 'alert-error');
+            }
+        })
+        .catch(function(err) {
+            console.error('Erreur upload scan:', err);
+            showScanMessage(err.message || 'Erreur lors du scan.', 'alert-error');
+        });
+
+        return false;
     }
 
     // Charger les pièces au chargement de la page

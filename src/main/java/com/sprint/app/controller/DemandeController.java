@@ -1,5 +1,9 @@
 package com.sprint.app.controller;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,13 +17,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.multipart.MultipartFile;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.sprint.app.entity.Demande;
@@ -168,7 +167,8 @@ public class DemandeController {
     }
 
     /**
-     * Récupérer les pièces justificatives d'une demande avec leur statut de scan (AJAX).
+     * Récupérer les pièces justificatives d'une demande avec leur statut de scan
+     * (AJAX).
      */
     @GetMapping("/{id}/pieces")
     @ResponseBody
@@ -204,42 +204,65 @@ public class DemandeController {
             @RequestParam("file") MultipartFile file,
             RedirectAttributes redirectAttributes) {
         try {
-            if (file == null || file.isEmpty()) {
-                throw new IllegalStateException("Aucun fichier téléchargé");
-            }
-
-            // Validate PDF
-            String original = file.getOriginalFilename() == null ? "file.pdf" : file.getOriginalFilename();
-            if (!original.toLowerCase().endsWith(".pdf")) {
-                throw new IllegalStateException("Le fichier doit être au format PDF");
-            }
-
-            // Store under src/main/resources/static/uploads/ so Spring Boot serves them
-            Path uploadsDir = Paths.get(System.getProperty("user.dir"), "src", "main", "resources", "static", "uploads");
-            try {
-                Files.createDirectories(uploadsDir);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Impossible de créer le répertoire d'upload: " + ex.getMessage());
-            }
-
-            String filename = "piece_" + pieceId + "_" + System.currentTimeMillis() + ".pdf";
-            Path target = uploadsDir.resolve(filename);
-            try {
-                file.transferTo(target.toFile());
-            } catch (IOException ex) {
-                throw new IllegalStateException("Erreur lors de l'enregistrement du fichier: " + ex.getMessage());
-            }
-
-            // Build web-accessible path (Spring Boot serves static/ by default)
-            String webPath = "/uploads/" + filename;
-
-            DemandePiece piece = demandeService.marquerPieceCommeScannee(pieceId, webPath);
+            DemandePiece piece = enregistrerScanPiece(pieceId, file);
             redirectAttributes.addFlashAttribute("success", "Pièce marquée comme scannée");
             return "redirect:/demandes/" + piece.getDemande().getId();
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             return "redirect:/demandes";
         }
+    }
+
+    /**
+     * Variante JSON pour éviter la navigation de page lors du scan.
+     */
+    @PostMapping("/pieces/{pieceId}/scan-ajax")
+    @ResponseBody
+    public Map<String, Object> marquerPieceCommeScanneeAjax(@PathVariable Integer pieceId,
+            @RequestParam("file") MultipartFile file) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            DemandePiece piece = enregistrerScanPiece(pieceId, file);
+            response.put("success", true);
+            response.put("message", "Pièce marquée comme scannée");
+            response.put("pieceId", pieceId);
+            response.put("demandeId", piece.getDemande() != null ? piece.getDemande().getId() : null);
+            response.put("cheminFichier", piece.getCheminFichier());
+            return response;
+        } catch (IllegalStateException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return response;
+        }
+    }
+
+    private DemandePiece enregistrerScanPiece(Integer pieceId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalStateException("Aucun fichier téléchargé");
+        }
+
+        String original = file.getOriginalFilename() == null ? "file.pdf" : file.getOriginalFilename();
+        if (!original.toLowerCase().endsWith(".pdf")) {
+            throw new IllegalStateException("Le fichier doit être au format PDF");
+        }
+
+        Path uploadsDir = Paths.get(System.getProperty("user.dir"), "src", "main", "resources", "static", "uploads");
+        try {
+            Files.createDirectories(uploadsDir);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Impossible de créer le répertoire d'upload: " + ex.getMessage());
+        }
+
+        String filename = "piece_" + pieceId + "_" + System.currentTimeMillis() + ".pdf";
+        Path target = uploadsDir.resolve(filename);
+        try {
+            file.transferTo(target.toFile());
+        } catch (IOException ex) {
+            throw new IllegalStateException("Erreur lors de l'enregistrement du fichier: " + ex.getMessage());
+        }
+
+        String webPath = "/uploads/" + filename;
+        return demandeService.marquerPieceCommeScannee(pieceId, webPath);
     }
 
     /**
@@ -250,7 +273,8 @@ public class DemandeController {
             RedirectAttributes redirectAttributes) {
         try {
             demandeService.terminerScanEtVerrouiller(id);
-            redirectAttributes.addFlashAttribute("success", "Scan terminé avec succès. Le dossier est maintenant verrouillé.");
+            redirectAttributes.addFlashAttribute("success",
+                    "Scan terminé avec succès. Le dossier est maintenant verrouillé.");
             return "redirect:/demandes/" + id;
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
@@ -266,7 +290,8 @@ public class DemandeController {
             RedirectAttributes redirectAttributes) {
         try {
             demandeService.deverrouillirDossier(id);
-            redirectAttributes.addFlashAttribute("success", "Dossier déverrouillé. Les modifications sont maintenant autorisées.");
+            redirectAttributes.addFlashAttribute("success",
+                    "Dossier déverrouillé. Les modifications sont maintenant autorisées.");
             return "redirect:/demandes/" + id;
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
