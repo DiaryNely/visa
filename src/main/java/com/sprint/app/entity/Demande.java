@@ -59,6 +59,16 @@ public class Demande {
     @Column(name = "motif_rejet", columnDefinition = "TEXT")
     private String motifRejet;
 
+    @Column(name = "statut_scan", nullable = false, length = 30)
+    private String statutScan = "EN_COURS_DE_SCAN";
+
+    @Column(name = "est_verrouille", nullable = false)
+    private Boolean estVerrouille = false;
+
+    @Column(name = "date_scan_termine")
+    private LocalDate dateScanTermine;
+
+    public Demande() {}
     // Sprint 2 - Duplicata fields
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_motif_duplicata")
@@ -202,6 +212,15 @@ public class Demande {
     public String getNouveauNumeroPasseport() { return nouveauNumeroPasseport; }
     public void setNouveauNumeroPasseport(String nouveauNumeroPasseport) { this.nouveauNumeroPasseport = nouveauNumeroPasseport; }
 
+    public String getStatutScan() { return statutScan; }
+    public void setStatutScan(String statutScan) { this.statutScan = statutScan; }
+
+    public Boolean getEstVerrouille() { return estVerrouille; }
+    public void setEstVerrouille(Boolean estVerrouille) { this.estVerrouille = estVerrouille; }
+
+    public LocalDate getDateScanTermine() { return dateScanTermine; }
+    public void setDateScanTermine(LocalDate dateScanTermine) { this.dateScanTermine = dateScanTermine; }
+
     public String getStatutLabel() {
         if (statut == null)
             return "";
@@ -226,6 +245,26 @@ public class Demande {
             case "validee" -> "badge-success";
             case "approuvee" -> "badge-success";
             case "rejetee" -> "badge-danger";
+            default -> "badge-secondary";
+        };
+    }
+
+    public String getStatutScanLabel() {
+        if (statutScan == null) return "";
+        return switch (statutScan) {
+            case "EN_COURS_DE_SCAN" -> "En cours de scan";
+            case "SCAN_TERMINE" -> "Scan terminé";
+            case "DOSSIER_VERROUILLE" -> "Dossier verrouillé";
+            default -> statutScan;
+        };
+    }
+
+    public String getStatutScanBadgeClass() {
+        if (statutScan == null) return "badge-secondary";
+        return switch (statutScan) {
+            case "EN_COURS_DE_SCAN" -> "badge-info";
+            case "SCAN_TERMINE" -> "badge-warning";
+            case "DOSSIER_VERROUILLE" -> "badge-success";
             default -> "badge-secondary";
         };
     }
