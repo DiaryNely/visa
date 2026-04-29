@@ -1,7 +1,7 @@
 package com.sprint.app.service;
 
-import java.text.Normalizer;
 import java.io.ByteArrayOutputStream;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -18,6 +18,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import com.sprint.app.entity.Demande;
 import com.sprint.app.entity.DemandePiece;
 import com.sprint.app.entity.Demandeur;
@@ -36,11 +41,6 @@ import com.sprint.app.repository.TypeDemandeRepository;
 import com.sprint.app.repository.TypeProfilRepository;
 import com.sprint.app.repository.TypeVisaRepository;
 import com.sprint.app.repository.VisaTransformableRepository;
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.WriterException;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
 
 @Service
 public class DemandeService {
@@ -188,8 +188,10 @@ public class DemandeService {
     }
 
     /**
-     * Créer une demande de Duplicata/Transfert avec statut "approuvee" pour un sans-données.
-     * Cette méthode est utilisée lors de la création d'un nouveau demandeur sans données antérieures.
+     * Créer une demande de Duplicata/Transfert avec statut "approuvee" pour un
+     * sans-données.
+     * Cette méthode est utilisée lors de la création d'un nouveau demandeur sans
+     * données antérieures.
      */
     @Transactional
     public Demande creerDemandeApprouvee(Integer demandeurId, Integer typeDemandeId, Integer typeVisaId,
@@ -223,7 +225,7 @@ public class DemandeService {
         demande.setStatut("approuvee");
         demande.setSansDonnees(true);
         demande.setObservations(observations);
-        
+
         // Ajouter les champs spécifiques au Duplicata/Transfert
         if (motifDuplicateId != null) {
             // Laisse le repository faire le travail avec le champ motifDuplicate
@@ -587,7 +589,8 @@ public class DemandeService {
     // ==================== SPRINT 2 - DUPLICATA ====================
 
     /**
-     * Récupérer les demandeurs qui ont au moins une demande de type Duplicata ou Transfert
+     * Récupérer les demandeurs qui ont au moins une demande de type Duplicata ou
+     * Transfert
      */
     public List<Demandeur> getDemandeursWithDuplicataOrTransfer() {
         List<Demande> demands = demandeRepository.findAll();
@@ -599,8 +602,9 @@ public class DemandeService {
                 demandeurs.add(demande.getDemandeur());
             }
         }
-
         return new ArrayList<>(demandeurs);
+    }
+
     private void enrichirQrCodeDemande(Demande demande) {
         String frontendDetailUrl = frontendBaseUrl + "/demande/" + demande.getId();
         demande.setQrCodeUrl(frontendDetailUrl);

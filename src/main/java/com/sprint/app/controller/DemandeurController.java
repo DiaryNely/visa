@@ -113,6 +113,7 @@ public class DemandeurController {
             @RequestParam String adresse,
             @RequestParam Integer nationaliteId,
             @RequestParam Integer situationFamilialeId,
+            @RequestParam(required = false) Integer demandeurId,
             // Demande initiale + pieces justificatives
             @RequestParam(required = false) Integer typeDemandeId,
             @RequestParam(required = false) Integer typeVisaId,
@@ -121,9 +122,9 @@ public class DemandeurController {
             @RequestParam(required = false) String nouveauNumeroPasseport,
             @RequestParam(required = false) List<Integer> pieceIds,
             // Passeport
-            @RequestParam String numeroPasse,
-            @RequestParam String dateDelivrancePasse,
-            @RequestParam String dateExpirationPasse,
+            @RequestParam(required = false) String numeroPasse,
+            @RequestParam(required = false) String dateDelivrancePasse,
+            @RequestParam(required = false) String dateExpirationPasse,
             @RequestParam(required = false) String paysDelivrance,
             // Visa transformable
             @RequestParam(required = false) String numeroReferenceVisa,
@@ -132,47 +133,81 @@ public class DemandeurController {
             @RequestParam(required = false) String dateExpirationVisa,
             RedirectAttributes redirectAttributes) {
         try {
-            // Vérifier si le numéro de passeport existe déjà
-            if (demandeurService.passeportExists(numeroPasse)) {
-                redirectAttributes.addFlashAttribute("error",
-                        "Erreur : Le numéro de passeport '" + numeroPasse + "' existe déjà en base de données. "
-                                + "Veuillez vérifier le numéro saisi.");
-                return "redirect:/demandeurs/nouveau";
-            }
-
-            // Créer le demandeur
-            Demandeur demandeur = new Demandeur();
-            demandeur.setNom(nom.toUpperCase());
-            demandeur.setPrenom(prenom);
-            demandeur.setNomJeuneFille(nomJeuneFille);
-            demandeur.setNomPere(nomPere);
-            demandeur.setDateNaissance(LocalDate.parse(dateNaissance));
-            demandeur.setLieuNaissance(lieuNaissance);
-            demandeur.setProfession(profession);
-            demandeur.setTelephone(telephone);
-            demandeur.setEmail(email);
-            demandeur.setAdresse(adresse);
-
             Nationalite nationalite = demandeurService.findNationaliteById(nationaliteId)
                     .orElseThrow(() -> new IllegalStateException("Nationalité introuvable"));
-            demandeur.setNationalite(nationalite);
 
             SituationFamiliale situationFamiliale = demandeurService.findSituationFamilialeById(situationFamilialeId)
                     .orElseThrow(() -> new IllegalStateException("Situation familiale introuvable"));
-            demandeur.setSituationFamiliale(situationFamiliale);
 
-            demandeur = demandeurService.save(demandeur);
+            Demandeur demandeur;
+            Passeport passeport;
 
-            // Créer le passeport
-            Passeport passeport = new Passeport();
-            passeport.setDemandeur(demandeur);
-            passeport.setNumeroPasse(numeroPasse);
-            passeport.setDateDelivrance(LocalDate.parse(dateDelivrancePasse));
-            passeport.setDateExpiration(LocalDate.parse(dateExpirationPasse));
-            passeport.setPaysDelivrance(paysDelivrance);
-            passeport.setEstActif(true);
+            if (demandeurId != null) {
+                demandeur = demandeurService.findById(demandeurId)
+                        .orElseThrow(() -> new IllegalStateException("Demandeur introuvable"));
 
-            passeport = demandeurService.savePasseport(passeport);
+                demandeur.setNom(nom.toUpperCase());
+                demandeur.setPrenom(prenom);
+                demandeur.setNomJeuneFille(nomJeuneFille);
+                demandeur.setNomPere(nomPere);
+                demandeur.setDateNaissance(LocalDate.parse(dateNaissance));
+                demandeur.setLieuNaissance(lieuNaissance);
+                demandeur.setProfession(profession);
+                demandeur.setTelephone(telephone);
+                demandeur.setEmail(email);
+                demandeur.setAdresse(adresse);
+                demandeur.setNationalite(nationalite);
+                demandeur.setSituationFamiliale(situationFamiliale);
+
+                demandeur = demandeurService.save(demandeur);
+
+                passeport = demandeurService.getPasseportActif(demandeur.getId())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Aucun passeport actif trouvé pour ce demandeur. Impossible de créer une nouvelle demande."));
+            } else {
+                if (numeroPasse == null || numeroPasse.trim().isEmpty() || dateDelivrancePasse == null
+                        || dateDelivrancePasse.trim().isEmpty() || dateExpirationPasse == null
+                        || dateExpirationPasse.trim().isEmpty()) {
+                    throw new IllegalStateException(
+                            "Le numero de passeport, la date de delivrance et la date d expiration sont obligatoires");
+                }
+
+                // Vérifier si le numéro de passeport existe déjà
+                if (demandeurService.passeportExists(numeroPasse)) {
+                    redirectAttributes.addFlashAttribute("error",
+                            "Erreur : Le numéro de passeport '" + numeroPasse + "' existe déjà en base de données. "
+                                    + "Veuillez vérifier le numéro saisi.");
+                    return "redirect:/demandeurs/nouveau";
+                }
+
+                // Créer le demandeur
+                demandeur = new Demandeur();
+                demandeur.setNom(nom.toUpperCase());
+                demandeur.setPrenom(prenom);
+                demandeur.setNomJeuneFille(nomJeuneFille);
+                demandeur.setNomPere(nomPere);
+                demandeur.setDateNaissance(LocalDate.parse(dateNaissance));
+                demandeur.setLieuNaissance(lieuNaissance);
+                demandeur.setProfession(profession);
+                demandeur.setTelephone(telephone);
+                demandeur.setEmail(email);
+                demandeur.setAdresse(adresse);
+                demandeur.setNationalite(nationalite);
+                demandeur.setSituationFamiliale(situationFamiliale);
+
+                demandeur = demandeurService.save(demandeur);
+
+                // Créer le passeport
+                passeport = new Passeport();
+                passeport.setDemandeur(demandeur);
+                passeport.setNumeroPasse(numeroPasse);
+                passeport.setDateDelivrance(LocalDate.parse(dateDelivrancePasse));
+                passeport.setDateExpiration(LocalDate.parse(dateExpirationPasse));
+                passeport.setPaysDelivrance(paysDelivrance);
+                passeport.setEstActif(true);
+
+                passeport = demandeurService.savePasseport(passeport);
+            }
 
             // Créer le visa transformable si fourni
             VisaTransformable visaTransformableCree = null;
@@ -236,7 +271,9 @@ public class DemandeurController {
             }
 
             redirectAttributes.addFlashAttribute("success",
-                    "Demandeur " + demandeur.getNomComplet() + " créé avec succès");
+                    demandeurId != null
+                            ? "Demandeur " + demandeur.getNomComplet() + " mis à jour avec succès"
+                            : "Demandeur " + demandeur.getNomComplet() + " créé avec succès");
             return "redirect:/demandeurs/" + demandeur.getId();
 
         } catch (IllegalStateException e) {
