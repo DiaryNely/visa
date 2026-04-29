@@ -34,7 +34,9 @@ public class DemandeController {
      * Liste des demandes avec filtre optionnel par statut.
      */
     @GetMapping
-    public String list(@RequestParam(required = false) String statut, Model model) {
+    public String list(@RequestParam(required = false) String statut,
+            @RequestParam(required = false) Integer createdId,
+            Model model) {
         List<Demande> demandes;
         if (statut != null && !statut.isEmpty()) {
             demandes = demandeService.findByStatut(statut);
@@ -43,6 +45,7 @@ public class DemandeController {
         }
         model.addAttribute("demandes", demandes);
         model.addAttribute("filtreStatut", statut);
+        model.addAttribute("createdId", createdId);
         model.addAttribute("activePage", "demandes");
         return "demandes/list";
     }
@@ -117,8 +120,8 @@ public class DemandeController {
             Demande demande = demandeService.creerDemande(
                     demandeurId, typeDemandeId, typeVisaId, typeProfilId, visaTransformableId, observations);
             redirectAttributes.addFlashAttribute("success",
-                    "Demande #" + demande.getId() + " créée avec succès");
-            return "redirect:/demandes/" + demande.getId();
+                    "Demande #" + demande.getId() + " créée avec succès. QR code généré.");
+            return "redirect:/demandes?createdId=" + demande.getId();
         } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             return "redirect:/demandes/nouveau";
