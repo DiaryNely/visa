@@ -70,8 +70,12 @@ CREATE TABLE Visa_transformable (
     id_demandeur INTEGER NOT NULL,
     id_passeport INTEGER NOT NULL,
     numero_reference VARCHAR(50) NOT NULL UNIQUE,
+    date_entree DATE NOT NULL,
+    lieu_entree VARCHAR(100) NOT NULL,
+    date_expiration DATE NOT NULL,
     FOREIGN KEY (id_demandeur) REFERENCES Demandeur(id),
-    FOREIGN KEY (id_passeport) REFERENCES Passeport(id)
+    FOREIGN KEY (id_passeport) REFERENCES Passeport(id),
+    CHECK (date_expiration >= date_entree)
 );
 
 CREATE TABLE Motif_duplicata (
@@ -100,6 +104,8 @@ CREATE TABLE Demande (
     id_motif_duplicata INTEGER,
     id_type_duplicata INTEGER,
     nouveau_numero_passeport VARCHAR(50),
+    qr_code_url TEXT,
+    qr_code_image_base64 TEXT,
     FOREIGN KEY (id_type_demande) REFERENCES Type_demande(id),
     FOREIGN KEY (id_type_profil) REFERENCES Type_profil(id),
     FOREIGN KEY (id_demandeur) REFERENCES Demandeur(id),

@@ -70,43 +70,127 @@ public class Demande {
 
     @Column(name = "nouveau_numero_passeport", length = 50)
     private String nouveauNumeroPasseport;
+    @Column(name = "qr_code_url", columnDefinition = "TEXT")
+    private String qrCodeUrl;
+
+    @Column(name = "qr_code_image_base64", columnDefinition = "TEXT")
+    private String qrCodeImageBase64;
+
+    public Demande() {
+    }
 
     // Getters & Setters
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
+    public Integer getId() {
+        return id;
+    }
 
-    public VisaTransformable getVisaTransformable() { return visaTransformable; }
-    public void setVisaTransformable(VisaTransformable visaTransformable) { this.visaTransformable = visaTransformable; }
+    public void setId(Integer id) {
+        this.id = id;
+    }
 
-    public LocalDateTime getDateDemande() { return dateDemande; }
-    public void setDateDemande(LocalDateTime dateDemande) { this.dateDemande = dateDemande; }
+    public VisaTransformable getVisaTransformable() {
+        return visaTransformable;
+    }
 
-    public String getStatut() { return statut; }
-    public void setStatut(String statut) { this.statut = statut; }
+    public void setVisaTransformable(VisaTransformable visaTransformable) {
+        this.visaTransformable = visaTransformable;
+    }
 
-    public Boolean getSansDonnees() { return sansDonnees; }
-    public void setSansDonnees(Boolean sansDonnees) { this.sansDonnees = sansDonnees; }
+    public LocalDateTime getDateDemande() {
+        return dateDemande;
+    }
 
-    public Demandeur getDemandeur() { return demandeur; }
-    public void setDemandeur(Demandeur demandeur) { this.demandeur = demandeur; }
+    public void setDateDemande(LocalDateTime dateDemande) {
+        this.dateDemande = dateDemande;
+    }
 
-    public TypeVisa getTypeVisa() { return typeVisa; }
-    public void setTypeVisa(TypeVisa typeVisa) { this.typeVisa = typeVisa; }
+    public String getStatut() {
+        return statut;
+    }
 
-    public TypeDemande getTypeDemande() { return typeDemande; }
-    public void setTypeDemande(TypeDemande typeDemande) { this.typeDemande = typeDemande; }
+    public void setStatut(String statut) {
+        this.statut = statut;
+    }
 
-    public TypeProfil getTypeProfil() { return typeProfil; }
-    public void setTypeProfil(TypeProfil typeProfil) { this.typeProfil = typeProfil; }
+    public Boolean getSansDonnees() {
+        return sansDonnees;
+    }
 
-    public LocalDate getDateTraitement() { return dateTraitement; }
-    public void setDateTraitement(LocalDate dateTraitement) { this.dateTraitement = dateTraitement; }
+    public void setSansDonnees(Boolean sansDonnees) {
+        this.sansDonnees = sansDonnees;
+    }
 
-    public String getObservations() { return observations; }
-    public void setObservations(String observations) { this.observations = observations; }
+    public Demandeur getDemandeur() {
+        return demandeur;
+    }
 
-    public String getMotifRejet() { return motifRejet; }
-    public void setMotifRejet(String motifRejet) { this.motifRejet = motifRejet; }
+    public void setDemandeur(Demandeur demandeur) {
+        this.demandeur = demandeur;
+    }
+
+    public TypeVisa getTypeVisa() {
+        return typeVisa;
+    }
+
+    public void setTypeVisa(TypeVisa typeVisa) {
+        this.typeVisa = typeVisa;
+    }
+
+    public TypeDemande getTypeDemande() {
+        return typeDemande;
+    }
+
+    public void setTypeDemande(TypeDemande typeDemande) {
+        this.typeDemande = typeDemande;
+    }
+
+    public TypeProfil getTypeProfil() {
+        return typeProfil;
+    }
+
+    public void setTypeProfil(TypeProfil typeProfil) {
+        this.typeProfil = typeProfil;
+    }
+
+    public LocalDate getDateTraitement() {
+        return dateTraitement;
+    }
+
+    public void setDateTraitement(LocalDate dateTraitement) {
+        this.dateTraitement = dateTraitement;
+    }
+
+    public String getObservations() {
+        return observations;
+    }
+
+    public void setObservations(String observations) {
+        this.observations = observations;
+    }
+
+    public String getMotifRejet() {
+        return motifRejet;
+    }
+
+    public void setMotifRejet(String motifRejet) {
+        this.motifRejet = motifRejet;
+    }
+
+    public String getQrCodeUrl() {
+        return qrCodeUrl;
+    }
+
+    public void setQrCodeUrl(String qrCodeUrl) {
+        this.qrCodeUrl = qrCodeUrl;
+    }
+
+    public String getQrCodeImageBase64() {
+        return qrCodeImageBase64;
+    }
+
+    public void setQrCodeImageBase64(String qrCodeImageBase64) {
+        this.qrCodeImageBase64 = qrCodeImageBase64;
+    }
 
     // Sprint 2 - Duplicata getters & setters
     public MotifDuplicate getMotifDuplicate() { return motifDuplicate; }
@@ -119,7 +203,8 @@ public class Demande {
     public void setNouveauNumeroPasseport(String nouveauNumeroPasseport) { this.nouveauNumeroPasseport = nouveauNumeroPasseport; }
 
     public String getStatutLabel() {
-        if (statut == null) return "";
+        if (statut == null)
+            return "";
         return switch (statut) {
             case "brouillon" -> "Brouillon";
             case "soumise" -> "Soumise";
@@ -132,7 +217,8 @@ public class Demande {
     }
 
     public String getStatutBadgeClass() {
-        if (statut == null) return "badge-secondary";
+        if (statut == null)
+            return "badge-secondary";
         return switch (statut) {
             case "brouillon" -> "badge-secondary";
             case "soumise" -> "badge-info";

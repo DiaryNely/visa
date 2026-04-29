@@ -73,6 +73,14 @@ public class DemandeurService {
         return passeportRepository.findByDemandeurIdAndEstActifTrue(demandeurId);
     }
 
+    public Optional<Demandeur> findByNumeroPasse(String numeroPasse) {
+        Optional<Passeport> passeport = passeportRepository.findByNumeroPasse(numeroPasse);
+        if (passeport.isPresent()) {
+            return demandeurRepository.findById(passeport.get().getDemandeur().getId());
+        }
+        return Optional.empty();
+    }
+
     @Transactional
     public Passeport savePasseport(Passeport passeport) {
         return passeportRepository.save(passeport);

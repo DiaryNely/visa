@@ -1,5 +1,7 @@
 package com.sprint.app.entity;
 
+import java.time.LocalDate;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.Column;
@@ -31,6 +33,15 @@ public class VisaTransformable {
 
     @Column(name = "numero_reference", nullable = false, unique = true, length = 50)
     private String numeroReference;
+
+    @Column(name = "date_entree")
+    private LocalDate dateEntree;
+
+    @Column(name = "lieu_entree", length = 100)
+    private String lieuEntree;
+
+    @Column(name = "date_expiration")
+    private LocalDate dateExpiration;
 
     public VisaTransformable() {
     }
@@ -67,10 +78,37 @@ public class VisaTransformable {
         this.numeroReference = numeroReference;
     }
 
+    public LocalDate getDateEntree() {
+        return dateEntree;
+    }
+
+    public void setDateEntree(LocalDate dateEntree) {
+        this.dateEntree = dateEntree;
+    }
+
+    public String getLieuEntree() {
+        return lieuEntree;
+    }
+
+    public void setLieuEntree(String lieuEntree) {
+        this.lieuEntree = lieuEntree;
+    }
+
+    public LocalDate getDateExpiration() {
+        return dateExpiration;
+    }
+
+    public void setDateExpiration(LocalDate dateExpiration) {
+        this.dateExpiration = dateExpiration;
+    }
+
     /**
-     * Un visa transformable est valide si le passeport associé est encore valide.
+     * Un visa transformable est valide si le passeport associe est valide
+     * et si la date d'expiration du visa n'est pas depassee.
      */
     public boolean isValide() {
-        return passeport != null && passeport.isValide();
+        boolean passeportValide = passeport != null && passeport.isValide();
+        boolean visaNonExpire = dateExpiration != null && !dateExpiration.isBefore(LocalDate.now());
+        return passeportValide && visaNonExpire;
     }
 }

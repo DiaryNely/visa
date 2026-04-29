@@ -1,9 +1,11 @@
 package com.sprint.app.service;
 
 import java.text.Normalizer;
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,9 +36,16 @@ import com.sprint.app.repository.TypeDemandeRepository;
 import com.sprint.app.repository.TypeProfilRepository;
 import com.sprint.app.repository.TypeVisaRepository;
 import com.sprint.app.repository.VisaTransformableRepository;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 
 @Service
 public class DemandeService {
+
+    private static final int QR_CODE_SIZE = 280;
 
     @Autowired
     private DemandeRepository demandeRepository;
@@ -63,6 +73,9 @@ public class DemandeService {
 
     @Autowired
     private DemandePieceRepository demandePieceRepository;
+
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
 
     // ==================== CRUD ====================
 
@@ -164,6 +177,9 @@ public class DemandeService {
         demande.setObservations(observations);
 
         demande = demandeRepository.save(demande);
+
+        // Generer et associer le QR code qui pointe vers l'application Vue.
+        enrichirQrCodeDemande(demande);
 
         // Créer l'entrée d'historique initiale
         creerHistoriqueStatut(demande, "brouillon");
@@ -426,5 +442,23 @@ public class DemandeService {
         }
 
         return new ArrayList<>(demandeurs);
+    private void enrichirQrCodeDemande(Demande demande) {
+        String frontendDetailUrl = frontendBaseUrl + "/demande/" + demande.getId();
+        demande.setQrCodeUrl(frontendDetailUrl);
+        demande.setQrCodeImageBase64(generateQrCodeBase64(frontendDetailUrl));
+        demandeRepository.save(demande);
+    }
+
+    private String generateQrCodeBase64(String content) {
+        try {
+            QRCodeWriter qrCodeWriter = new QRCodeWriter();
+            BitMatrix bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, QR_CODE_SIZE, QR_CODE_SIZE);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (WriterException | java.io.IOException e) {
+            throw new IllegalStateException("Impossible de generer le QR code de la demande", e);
+        }
     }
 }

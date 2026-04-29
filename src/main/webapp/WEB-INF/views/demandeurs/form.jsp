@@ -141,6 +141,20 @@
                             <label class="form-label">Numéro de référence du VISA transformable <span class="required">*</span></label>
                             <input type="text" name="numeroReferenceVisa" class="form-control" placeholder="Ex: VT-2024-001234" required>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">Lieu d'entree a l'aeroport <span class="required">*</span></label>
+                            <input type="text" name="lieuEntreeVisa" class="form-control" placeholder="Ex: Aeroport international" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Date d'entree <span class="required">*</span></label>
+                            <input type="date" name="dateEntreeVisa" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Date d'expiration du VISA transformable <span class="required">*</span></label>
+                            <input type="date" name="dateExpirationVisa" class="form-control" required>
+                        </div>
                     </div>
                 </div>
 
