@@ -19,13 +19,16 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.sprint.app.entity.Demande;
 import com.sprint.app.entity.Demandeur;
+import com.sprint.app.entity.MotifDuplicate;
 import com.sprint.app.entity.Nationalite;
 import com.sprint.app.entity.Passeport;
 import com.sprint.app.entity.PieceJustificative;
 import com.sprint.app.entity.SituationFamiliale;
+import com.sprint.app.entity.TypeDemande;
 import com.sprint.app.entity.VisaTransformable;
 import com.sprint.app.service.DemandeService;
 import com.sprint.app.service.DemandeurService;
+import com.sprint.app.service.DuplicataService;
 
 @Controller
 @RequestMapping("/demandeurs")
@@ -36,6 +39,9 @@ public class DemandeurController {
 
     @Autowired
     private DemandeService demandeService;
+
+    @Autowired
+    private DuplicataService duplicataService;
 
     /**
      * Liste des demandeurs avec recherche.
@@ -85,6 +91,12 @@ public class DemandeurController {
         return payload;
     }
 
+    @GetMapping("/duplicata-motifs")
+    @ResponseBody
+    public List<MotifDuplicate> getDuplicataMotifs() {
+        return duplicataService.getAllMotifs();
+    }
+
     /**
      * Enregistrer un nouveau demandeur avec passeport et visa transformable.
      */
@@ -105,6 +117,8 @@ public class DemandeurController {
             @RequestParam(required = false) Integer typeDemandeId,
             @RequestParam(required = false) Integer typeVisaId,
             @RequestParam(required = false) Integer typeProfilId,
+            @RequestParam(required = false) Integer motifDuplicateId,
+            @RequestParam(required = false) String nouveauNumeroPasseport,
             @RequestParam(required = false) List<Integer> pieceIds,
             // Passeport
             @RequestParam String numeroPasse,
@@ -118,6 +132,14 @@ public class DemandeurController {
             @RequestParam(required = false) String dateExpirationVisa,
             RedirectAttributes redirectAttributes) {
         try {
+            // Vérifier si le numéro de passeport existe déjà
+            if (demandeurService.passeportExists(numeroPasse)) {
+                redirectAttributes.addFlashAttribute("error",
+                        "Erreur : Le numéro de passeport '" + numeroPasse + "' existe déjà en base de données. "
+                                + "Veuillez vérifier le numéro saisi.");
+                return "redirect:/demandeurs/nouveau";
+            }
+
             // Créer le demandeur
             Demandeur demandeur = new Demandeur();
             demandeur.setNom(nom.toUpperCase());
@@ -180,13 +202,35 @@ public class DemandeurController {
                             "Le numero de reference du VISA transformable est obligatoire pour creer la demande initiale");
                 }
 
-                Demande demande = demandeService.creerDemande(
-                        demandeur.getId(),
-                        typeDemandeId,
-                        typeVisaId,
-                        typeProfilId,
-                        visaTransformableCree.getId(),
-                        "Demande initiale creee lors de l enregistrement du demandeur");
+                // Récupérer le type de demande pour vérifier si c'est un Duplicata/Transfert
+                TypeDemande typeDemande = demandeService.getTypeDemandeById(typeDemandeId)
+                        .orElseThrow(() -> new IllegalStateException("Type de demande introuvable"));
+                boolean isDuplicataOrTransfer = typeDemande.getLibelle().toLowerCase().contains("duplicata")
+                        || typeDemande.getLibelle().toLowerCase().contains("transfert");
+
+                Demande demande;
+                if (isDuplicataOrTransfer) {
+                    // Créer avec statut "approuvee" pour Duplicata/Transfert
+                    demande = demandeService.creerDemandeApprouvee(
+                            demandeur.getId(),
+                            typeDemandeId,
+                            typeVisaId,
+                            typeProfilId,
+                            visaTransformableCree.getId(),
+                            motifDuplicateId,
+                            nouveauNumeroPasseport,
+                            "Demande de " + typeDemande.getLibelle().toLowerCase()
+                                    + " creee lors de l enregistrement du demandeur");
+                } else {
+                    // Créer une demande normale avec statut "brouillon"
+                    demande = demandeService.creerDemande(
+                            demandeur.getId(),
+                            typeDemandeId,
+                            typeVisaId,
+                            typeProfilId,
+                            visaTransformableCree.getId(),
+                            "Demande initiale creee lors de l enregistrement du demandeur");
+                }
 
                 demandeService.enregistrerPiecesPourDemande(demande, pieceIds);
             }

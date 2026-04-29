@@ -120,4 +120,11 @@ public class DemandeurService {
     public long count() {
         return demandeurRepository.count();
     }
+
+    /**
+     * Vérifier si un numéro de passeport existe déjà en base de données.
+     */
+    public boolean passeportExists(String numeroPasse) {
+        return passeportRepository.existsByNumeroPasse(numeroPasse);
+    }
 }

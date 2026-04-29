@@ -73,6 +73,26 @@ SELECT 'Retraite' WHERE NOT EXISTS (SELECT 1 FROM Type_profil WHERE libelle = 'R
 INSERT INTO Type_profil (libelle)
 SELECT 'Conjoint de national' WHERE NOT EXISTS (SELECT 1 FROM Type_profil WHERE libelle = 'Conjoint de national');
 
+-- Motifs de duplicata (Sprint 2)
+INSERT INTO Motif_duplicata (libelle)
+SELECT 'Perte' WHERE NOT EXISTS (SELECT 1 FROM Motif_duplicata WHERE libelle = 'Perte');
+INSERT INTO Motif_duplicata (libelle)
+SELECT 'Vol' WHERE NOT EXISTS (SELECT 1 FROM Motif_duplicata WHERE libelle = 'Vol');
+INSERT INTO Motif_duplicata (libelle)
+SELECT 'Deterioration' WHERE NOT EXISTS (SELECT 1 FROM Motif_duplicata WHERE libelle = 'Deterioration');
+INSERT INTO Motif_duplicata (libelle)
+SELECT 'Erreur administrative' WHERE NOT EXISTS (SELECT 1 FROM Motif_duplicata WHERE libelle = 'Erreur administrative');
+INSERT INTO Motif_duplicata (libelle)
+SELECT 'Changement de support' WHERE NOT EXISTS (SELECT 1 FROM Motif_duplicata WHERE libelle = 'Changement de support');
+INSERT INTO Motif_duplicata (libelle)
+SELECT 'Cas particulier' WHERE NOT EXISTS (SELECT 1 FROM Motif_duplicata WHERE libelle = 'Cas particulier');
+
+-- Types de duplicata (Sprint 2)
+INSERT INTO Type_duplicata (libelle)
+SELECT 'Transfert de visa' WHERE NOT EXISTS (SELECT 1 FROM Type_duplicata WHERE libelle = 'Transfert de visa');
+INSERT INTO Type_duplicata (libelle)
+SELECT 'Duplicata de carte resident' WHERE NOT EXISTS (SELECT 1 FROM Type_duplicata WHERE libelle = 'Duplicata de carte resident');
+
 -- Pieces justificatives (type demande + profil)
 INSERT INTO Piece_justificative (id_type_demande, id_type_profil, libelle, obligatoire)
 SELECT td.id, NULL, 'Formulaire de demande signe', TRUE

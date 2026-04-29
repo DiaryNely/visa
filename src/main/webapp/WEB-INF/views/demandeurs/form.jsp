@@ -181,6 +181,22 @@
                             </select>
                         </div>
                     </div>
+
+                    <!-- Motif de duplicata (visible seulement pour Duplicata/Transfert) -->
+                    <div id="motifDuplicataSection" style="display: none;" class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Motif <span class="required">*</span></label>
+                            <select name="motifDuplicateId" id="motifDuplicateSelect" class="form-control">
+                                <option value="">-- Chargement... --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nouveau numéro de passeport (si Transfert) <span id="passportRequired"></span></label>
+                            <input type="text" name="nouveauNumeroPasseport" id="nouveauNumeroPasseport" class="form-control" 
+                                   placeholder="Ex: FR12345678" maxlength="50">
+                        </div>
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Profil (optionnel)</label>
@@ -210,10 +226,63 @@
 </div>
 
 <script>
+// Charger les motifs de duplicata au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    loadDuplicataMotifs();
+});
+
+function loadDuplicataMotifs() {
+    fetch('${pageContext.request.contextPath}/demandeurs/duplicata-motifs')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            var select = document.getElementById('motifDuplicateSelect');
+            select.innerHTML = '<option value="">-- Sélectionnez --</option>';
+            if (data && Array.isArray(data)) {
+                data.forEach(function(motif) {
+                    var option = document.createElement('option');
+                    option.value = motif.id;
+                    option.textContent = motif.libelle;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(function(error) {
+            console.error('Erreur lors du chargement des motifs:', error);
+        });
+}
+
 function loadPiecesJustificatives() {
     var typeDemandeId = document.getElementById('typeDemandeSelect').value;
     var typeVisaId = document.getElementById('typeVisaSelect').value;
+    var typeDemandeSelect = document.getElementById('typeDemandeSelect');
+    var selectedOptionText = typeDemandeSelect.options[typeDemandeSelect.selectedIndex].text;
     var container = document.getElementById('piecesContainer');
+    var motifSection = document.getElementById('motifDuplicataSection');
+    var passportInput = document.getElementById('nouveauNumeroPasseport');
+    var passportRequired = document.getElementById('passportRequired');
+
+    // Vérifier si c'est un type de demande "Duplicata" ou "Transfert"
+    var isDuplicataOrTransfer = selectedOptionText.toLowerCase().includes('duplicata') || 
+                                selectedOptionText.toLowerCase().includes('transfert');
+
+    if (isDuplicataOrTransfer) {
+        motifSection.style.display = 'block';
+        
+        // Si c'est un Transfert, rendre le passeport obligatoire
+        if (selectedOptionText.toLowerCase().includes('transfert')) {
+            passportRequired.innerHTML = '<span class="required">*</span>';
+            passportInput.setAttribute('required', 'required');
+        } else {
+            passportRequired.innerHTML = '';
+            passportInput.removeAttribute('required');
+            passportInput.value = '';
+        }
+    } else {
+        motifSection.style.display = 'none';
+        passportRequired.innerHTML = '';
+        passportInput.removeAttribute('required');
+        passportInput.value = '';
+    }
 
     if (!typeDemandeId || !typeVisaId) {
         container.innerHTML = '<div class="text-muted">Selectionnez d\'abord le type de demande et le type de VISA.</div>';

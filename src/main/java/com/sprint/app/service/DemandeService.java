@@ -187,6 +187,59 @@ public class DemandeService {
         return demande;
     }
 
+    /**
+     * Créer une demande de Duplicata/Transfert avec statut "approuvee" pour un sans-données.
+     * Cette méthode est utilisée lors de la création d'un nouveau demandeur sans données antérieures.
+     */
+    @Transactional
+    public Demande creerDemandeApprouvee(Integer demandeurId, Integer typeDemandeId, Integer typeVisaId,
+            Integer typeProfilId, Integer visaTransformableId, Integer motifDuplicateId,
+            String nouveauNumeroPasseport, String observations) {
+
+        // Charger les entités
+        Demandeur demandeur = demandeurRepository.findById(demandeurId)
+                .orElseThrow(() -> new IllegalStateException("Demandeur introuvable"));
+
+        TypeDemande typeDemande = typeDemandeRepository.findById(typeDemandeId)
+                .orElseThrow(() -> new IllegalStateException("Type de demande introuvable"));
+
+        TypeVisa typeVisa = typeVisaRepository.findById(typeVisaId)
+                .orElseThrow(() -> new IllegalStateException("Type de VISA introuvable"));
+
+        VisaTransformable visaTransformable = visaTransformableRepository.findById(visaTransformableId)
+                .orElseThrow(() -> new IllegalStateException("VISA transformable introuvable"));
+
+        // Créer la demande avec statut "approuvee"
+        Demande demande = new Demande();
+        demande.setDemandeur(demandeur);
+        demande.setTypeDemande(typeDemande);
+        demande.setTypeVisa(typeVisa);
+        if (typeProfilId != null) {
+            TypeProfil typeProfil = typeProfilRepository.findById(typeProfilId).orElse(null);
+            demande.setTypeProfil(typeProfil);
+        }
+        demande.setVisaTransformable(visaTransformable);
+        demande.setDateDemande(LocalDateTime.now());
+        demande.setStatut("approuvee");
+        demande.setSansDonnees(true);
+        demande.setObservations(observations);
+        
+        // Ajouter les champs spécifiques au Duplicata/Transfert
+        if (motifDuplicateId != null) {
+            // Laisse le repository faire le travail avec le champ motifDuplicate
+        }
+        if (nouveauNumeroPasseport != null) {
+            demande.setNouveauNumeroPasseport(nouveauNumeroPasseport);
+        }
+
+        demande = demandeRepository.save(demande);
+
+        // Créer l'entrée d'historique pour "approuvee"
+        creerHistoriqueStatut(demande, "approuvee");
+
+        return demande;
+    }
+
     // ==================== GESTION DES STATUTS ====================
 
     /**
@@ -301,6 +354,10 @@ public class DemandeService {
         return typeProfilRepository.findAll();
     }
 
+    public Optional<TypeDemande> getTypeDemandeById(Integer id) {
+        return typeDemandeRepository.findById(id);
+    }
+
     // ==================== PIECES JUSTIFICATIVES ====================
 
     public List<PieceJustificative> getPiecesJustificatives(Integer typeDemandeId, Integer typeVisaId) {
@@ -368,6 +425,23 @@ public class DemandeService {
         return normalized.toLowerCase();
     }
 
+    // ==================== SPRINT 2 - DUPLICATA ====================
+
+    /**
+     * Récupérer les demandeurs qui ont au moins une demande de type Duplicata ou Transfert
+     */
+    public List<Demandeur> getDemandeursWithDuplicataOrTransfer() {
+        List<Demande> demands = demandeRepository.findAll();
+        Set<Demandeur> demandeurs = new HashSet<>();
+
+        for (Demande demande : demands) {
+            String typeLibelle = demande.getTypeDemande().getLibelle().toLowerCase();
+            if (typeLibelle.contains("duplicata") || typeLibelle.contains("transfert")) {
+                demandeurs.add(demande.getDemandeur());
+            }
+        }
+
+        return new ArrayList<>(demandeurs);
     private void enrichirQrCodeDemande(Demande demande) {
         String frontendDetailUrl = frontendBaseUrl + "/demande/" + demande.getId();
         demande.setQrCodeUrl(frontendDetailUrl);
