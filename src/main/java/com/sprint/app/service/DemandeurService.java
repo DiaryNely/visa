@@ -1,13 +1,22 @@
 package com.sprint.app.service;
 
-import com.sprint.app.entity.*;
-import com.sprint.app.repository.*;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
+import com.sprint.app.entity.Demandeur;
+import com.sprint.app.entity.Nationalite;
+import com.sprint.app.entity.Passeport;
+import com.sprint.app.entity.SituationFamiliale;
+import com.sprint.app.entity.VisaTransformable;
+import com.sprint.app.repository.DemandeurRepository;
+import com.sprint.app.repository.NationaliteRepository;
+import com.sprint.app.repository.PasseportRepository;
+import com.sprint.app.repository.SituationFamilialeRepository;
+import com.sprint.app.repository.VisaTransformableRepository;
 
 @Service
 public class DemandeurService {
@@ -64,6 +73,14 @@ public class DemandeurService {
         return passeportRepository.findByDemandeurIdAndEstActifTrue(demandeurId);
     }
 
+    public Optional<Demandeur> findByNumeroPasse(String numeroPasse) {
+        Optional<Passeport> passeport = passeportRepository.findByNumeroPasse(numeroPasse);
+        if (passeport.isPresent()) {
+            return demandeurRepository.findById(passeport.get().getDemandeur().getId());
+        }
+        return Optional.empty();
+    }
+
     @Transactional
     public Passeport savePasseport(Passeport passeport) {
         return passeportRepository.save(passeport);
@@ -102,5 +119,12 @@ public class DemandeurService {
 
     public long count() {
         return demandeurRepository.count();
+    }
+
+    /**
+     * Vérifier si un numéro de passeport existe déjà en base de données.
+     */
+    public boolean passeportExists(String numeroPasse) {
+        return passeportRepository.existsByNumeroPasse(numeroPasse);
     }
 }

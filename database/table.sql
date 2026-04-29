@@ -70,15 +70,29 @@ CREATE TABLE Visa_transformable (
     id_demandeur INTEGER NOT NULL,
     id_passeport INTEGER NOT NULL,
     numero_reference VARCHAR(50) NOT NULL UNIQUE,
+    date_entree DATE NOT NULL,
+    lieu_entree VARCHAR(100) NOT NULL,
+    date_expiration DATE NOT NULL,
     FOREIGN KEY (id_demandeur) REFERENCES Demandeur(id),
-    FOREIGN KEY (id_passeport) REFERENCES Passeport(id)
+    FOREIGN KEY (id_passeport) REFERENCES Passeport(id),
+    CHECK (date_expiration >= date_entree)
+);
+
+CREATE TABLE Motif_duplicata (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    libelle VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Type_duplicata (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    libelle VARCHAR(50) NOT NULL
 );
 
 CREATE TABLE Demande (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_visa_transformable INTEGER,
     date_demande TIMESTAMP NOT NULL,
-    statut VARCHAR(30) NOT NULL CHECK (statut IN ('brouillon', 'soumise', 'en_cours', 'validee', 'rejetee')),
+    statut VARCHAR(30) NOT NULL CHECK (statut IN ('brouillon', 'soumise', 'en_cours', 'validee', 'rejetee', 'approuvee')),
     sans_donnees BOOLEAN NOT NULL DEFAULT FALSE,
     id_demandeur INTEGER NOT NULL,
     id_type_visa INTEGER NOT NULL,
@@ -90,18 +104,25 @@ CREATE TABLE Demande (
     statut_scan VARCHAR(30) NOT NULL DEFAULT 'EN_COURS_DE_SCAN' CHECK (statut_scan IN ('EN_COURS_DE_SCAN', 'SCAN_TERMINE', 'DOSSIER_VERROUILLE')),
     est_verrouille BOOLEAN NOT NULL DEFAULT FALSE,
     date_scan_termine DATE,
+    id_motif_duplicata INTEGER,
+    id_type_duplicata INTEGER,
+    nouveau_numero_passeport VARCHAR(50),
+    qr_code_url TEXT,
+    qr_code_image_base64 TEXT,
     FOREIGN KEY (id_type_demande) REFERENCES Type_demande(id),
     FOREIGN KEY (id_type_profil) REFERENCES Type_profil(id),
     FOREIGN KEY (id_demandeur) REFERENCES Demandeur(id),
     FOREIGN KEY (id_type_visa) REFERENCES Type_visa(id),
     FOREIGN KEY (id_visa_transformable) REFERENCES Visa_transformable(id),
+    FOREIGN KEY (id_motif_duplicata) REFERENCES Motif_duplicata(id),
+    FOREIGN KEY (id_type_duplicata) REFERENCES Type_duplicata(id),
     CHECK (date_traitement IS NULL OR date_traitement >= date_demande::date)
 );
 
 CREATE TABLE Statut_demande (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_demande INTEGER NOT NULL,
-    statut VARCHAR(30) NOT NULL CHECK (statut IN ('brouillon', 'soumise', 'en_cours', 'validee', 'rejetee')),
+    statut VARCHAR(30) NOT NULL CHECK (statut IN ('brouillon', 'soumise', 'en_cours', 'validee', 'rejetee', 'approuvee')),
     date_changement_statut DATE,
     FOREIGN KEY (id_demande) REFERENCES Demande(id)
 );
@@ -200,3 +221,17 @@ CREATE UNIQUE INDEX uq_passeport_actif_demandeur
     WHERE est_actif;
 
 COMMENT ON COLUMN Passeport.est_actif IS 'Un seul passeport actif par demandeur';
+
+-- D'abord, supprimez l'ancienne contrainte
+
+
+ALTER TABLE demande DROP CONSTRAINT demande_statut_check;
+ALTER TABLE demande 
+ADD CONSTRAINT demande_statut_check 
+CHECK (statut IN ('brouillon', 'soumise', 'en_cours', 'validee', 'rejetee', 'approuvee'));
+
+-- Corriger la table statut_demande
+ALTER TABLE statut_demande DROP CONSTRAINT statut_demande_statut_check;
+ALTER TABLE statut_demande 
+ADD CONSTRAINT statut_demande_statut_check 
+CHECK (statut IN ('brouillon', 'soumise', 'en_cours', 'validee', 'rejetee', 'approuvee'));

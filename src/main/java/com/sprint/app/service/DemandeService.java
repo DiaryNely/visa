@@ -1,9 +1,11 @@
 package com.sprint.app.service;
 
 import java.text.Normalizer;
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,9 +36,16 @@ import com.sprint.app.repository.TypeDemandeRepository;
 import com.sprint.app.repository.TypeProfilRepository;
 import com.sprint.app.repository.TypeVisaRepository;
 import com.sprint.app.repository.VisaTransformableRepository;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 
 @Service
 public class DemandeService {
+
+    private static final int QR_CODE_SIZE = 280;
 
     @Autowired
     private DemandeRepository demandeRepository;
@@ -63,6 +73,9 @@ public class DemandeService {
 
     @Autowired
     private DemandePieceRepository demandePieceRepository;
+
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
 
     // ==================== CRUD ====================
 
@@ -165,8 +178,64 @@ public class DemandeService {
 
         demande = demandeRepository.save(demande);
 
+        // Generer et associer le QR code qui pointe vers l'application Vue.
+        enrichirQrCodeDemande(demande);
+
         // Créer l'entrée d'historique initiale
         creerHistoriqueStatut(demande, "brouillon");
+
+        return demande;
+    }
+
+    /**
+     * Créer une demande de Duplicata/Transfert avec statut "approuvee" pour un sans-données.
+     * Cette méthode est utilisée lors de la création d'un nouveau demandeur sans données antérieures.
+     */
+    @Transactional
+    public Demande creerDemandeApprouvee(Integer demandeurId, Integer typeDemandeId, Integer typeVisaId,
+            Integer typeProfilId, Integer visaTransformableId, Integer motifDuplicateId,
+            String nouveauNumeroPasseport, String observations) {
+
+        // Charger les entités
+        Demandeur demandeur = demandeurRepository.findById(demandeurId)
+                .orElseThrow(() -> new IllegalStateException("Demandeur introuvable"));
+
+        TypeDemande typeDemande = typeDemandeRepository.findById(typeDemandeId)
+                .orElseThrow(() -> new IllegalStateException("Type de demande introuvable"));
+
+        TypeVisa typeVisa = typeVisaRepository.findById(typeVisaId)
+                .orElseThrow(() -> new IllegalStateException("Type de VISA introuvable"));
+
+        VisaTransformable visaTransformable = visaTransformableRepository.findById(visaTransformableId)
+                .orElseThrow(() -> new IllegalStateException("VISA transformable introuvable"));
+
+        // Créer la demande avec statut "approuvee"
+        Demande demande = new Demande();
+        demande.setDemandeur(demandeur);
+        demande.setTypeDemande(typeDemande);
+        demande.setTypeVisa(typeVisa);
+        if (typeProfilId != null) {
+            TypeProfil typeProfil = typeProfilRepository.findById(typeProfilId).orElse(null);
+            demande.setTypeProfil(typeProfil);
+        }
+        demande.setVisaTransformable(visaTransformable);
+        demande.setDateDemande(LocalDateTime.now());
+        demande.setStatut("approuvee");
+        demande.setSansDonnees(true);
+        demande.setObservations(observations);
+        
+        // Ajouter les champs spécifiques au Duplicata/Transfert
+        if (motifDuplicateId != null) {
+            // Laisse le repository faire le travail avec le champ motifDuplicate
+        }
+        if (nouveauNumeroPasseport != null) {
+            demande.setNouveauNumeroPasseport(nouveauNumeroPasseport);
+        }
+
+        demande = demandeRepository.save(demande);
+
+        // Créer l'entrée d'historique pour "approuvee"
+        creerHistoriqueStatut(demande, "approuvee");
 
         return demande;
     }
@@ -289,6 +358,10 @@ public class DemandeService {
 
     public List<TypeProfil> getAllTypesProfil() {
         return typeProfilRepository.findAll();
+    }
+
+    public Optional<TypeDemande> getTypeDemandeById(Integer id) {
+        return typeDemandeRepository.findById(id);
     }
 
     // ==================== PIECES JUSTIFICATIVES ====================
@@ -511,4 +584,40 @@ public class DemandeService {
      * Récupérer une pièce justificative par son ID.
      */
     // Méthodes d'édition des pièces désactivées car l'UI d'édition a été retirée.
+    // ==================== SPRINT 2 - DUPLICATA ====================
+
+    /**
+     * Récupérer les demandeurs qui ont au moins une demande de type Duplicata ou Transfert
+     */
+    public List<Demandeur> getDemandeursWithDuplicataOrTransfer() {
+        List<Demande> demands = demandeRepository.findAll();
+        Set<Demandeur> demandeurs = new HashSet<>();
+
+        for (Demande demande : demands) {
+            String typeLibelle = demande.getTypeDemande().getLibelle().toLowerCase();
+            if (typeLibelle.contains("duplicata") || typeLibelle.contains("transfert")) {
+                demandeurs.add(demande.getDemandeur());
+            }
+        }
+
+        return new ArrayList<>(demandeurs);
+    private void enrichirQrCodeDemande(Demande demande) {
+        String frontendDetailUrl = frontendBaseUrl + "/demande/" + demande.getId();
+        demande.setQrCodeUrl(frontendDetailUrl);
+        demande.setQrCodeImageBase64(generateQrCodeBase64(frontendDetailUrl));
+        demandeRepository.save(demande);
+    }
+
+    private String generateQrCodeBase64(String content) {
+        try {
+            QRCodeWriter qrCodeWriter = new QRCodeWriter();
+            BitMatrix bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, QR_CODE_SIZE, QR_CODE_SIZE);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (WriterException | java.io.IOException e) {
+            throw new IllegalStateException("Impossible de generer le QR code de la demande", e);
+        }
+    }
 }
