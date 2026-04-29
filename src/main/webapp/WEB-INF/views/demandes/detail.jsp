@@ -329,17 +329,33 @@
                     html += '<td style="padding: 10px;"><span class="badge ' + statutClass + '">' + statutLabel + '</span></td>';
                     html += '<td style="padding: 10px;">' + (p.dateScan ? p.dateScan : '-') + '</td>';
                     html += '<td style="padding: 10px;">';
-                    // Bouton "Marquer comme scanné" si pas encore scanné et pas verrouillé
-                    if (p.statutScan !== 'SCANNEE' && ${demande.estVerrouille} !== true) {
+                    // Tant que le dossier n'est pas verrouillé, permettre l'upload/modification des PDFs
+                    // - Pièces non scannées: toujours modifiables
+                    // - Pièces scannées: modifiables pendant le scan, mais pas après "Terminer scan"
+                    var dossierVerrouille = ${demande.estVerrouille} === true;
+                    var scanTermine = '${demande.statutScan}' === 'SCAN_TERMINE' || '${demande.statutScan}' === 'DOSSIER_VERROUILLE';
+                    var pieceNonScannee = p.statutScan !== 'SCANNEE';
+                    var peutModifier = !dossierVerrouille && (pieceNonScannee || !scanTermine);
+                    
+                    if (peutModifier) {
                         html += '<form action="${pageContext.request.contextPath}/demandes/pieces/' + p.id + '/scan" method="post" enctype="multipart/form-data" style="display:inline;">';
                         html += '<input type="file" name="file" accept="application/pdf" style="display:inline; margin-right:6px;">';
-                        html += '<button type="submit" class="btn btn-sm btn-primary">📄 Scanné</button>';
+                        if (p.statutScan === 'SCANNEE') {
+                            html += '<button type="submit" class="btn btn-sm btn-primary">🔄 Rescanner</button>';
+                        } else {
+                            html += '<button type="submit" class="btn btn-sm btn-primary">📱 Scanner</button>';
+                        }
                         html += '</form>';
-                    } else if (p.statutScan === 'SCANNEE') {
-                        html += '<span class="text-muted">✅ Scanné</span>';
                         if (p.cheminFichier) {
                             html += ' <a href="' + p.cheminFichier + '" target="_blank" class="btn btn-sm btn-outline">Voir</a>';
                         }
+                    } else if (p.statutScan === 'SCANNEE') {
+                        html += '<span class="text-muted">✅ Scanné (non modifiable)</span>';
+                        if (p.cheminFichier) {
+                            html += ' <a href="' + p.cheminFichier + '" target="_blank" class="btn btn-sm btn-outline">Voir</a>';
+                        }
+                    } else {
+                        html += '<span class="text-muted">En attente</span>';
                     }
                     html += '</td>';
                     html += '</tr>';
@@ -349,9 +365,9 @@
                 html += '</table>';
                 document.getElementById('piecesList').innerHTML = html;
 
-                // Afficher le bouton "Scan terminé" si tout est scanné
+                // Afficher le bouton "Terminer scan" de manière permanente pendant le scan
                 console.log('Tout scanné?', toutScanne);
-                if (toutScanne && pieces.length > 0 && !${demande.estVerrouille}) {
+                if (pieces.length > 0 && !${demande.estVerrouille}) {
                     document.getElementById('scanActions').style.display = 'block';
                 } else {
                     document.getElementById('scanActions').style.display = 'none';

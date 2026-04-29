@@ -392,6 +392,9 @@ public class DemandeService {
 
     /**
      * Marquer une pièce justificative comme scannée.
+     * - Pendant le scan: toutes les pièces peuvent être uploadées/modifiées
+     * - Après terminer scan: seules les pièces non scannées peuvent être uploadées
+     *   Les pièces déjà scannées ne peuvent plus être modifiées
      */
     @Transactional
     public DemandePiece marquerPieceCommeScannee(Integer demandePieceId, String cheminFichier)
@@ -400,7 +403,17 @@ public class DemandeService {
                 .orElseThrow(() -> new IllegalStateException("Pièce demande introuvable"));
 
         Demande demande = demandePiece.getDemande();
-        verifyDemandeCanBeModified(demande);
+        
+        // Si le dossier est complètement verrouillé, rien ne peut être modifié
+        if (Boolean.TRUE.equals(demande.getEstVerrouille())) {
+            throw new IllegalStateException("Le dossier est verrouillé, aucune modification n'est possible");
+        }
+        
+        // Si le scan est terminé et cette pièce a déjà été scannée, on ne peut pas la modifier
+        if (("SCAN_TERMINE".equals(demande.getStatutScan()) || "DOSSIER_VERROUILLE".equals(demande.getStatutScan()))
+                && "SCANNEE".equals(demandePiece.getStatutScan())) {
+            throw new IllegalStateException("Cette pièce a déjà été scannée et ne peut plus être modifiée");
+        }
 
         demandePiece.setStatutScan("SCANNEE");
         demandePiece.setDateScan(LocalDate.now());
