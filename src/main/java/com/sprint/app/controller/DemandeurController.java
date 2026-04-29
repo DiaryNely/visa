@@ -19,13 +19,16 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.sprint.app.entity.Demande;
 import com.sprint.app.entity.Demandeur;
+import com.sprint.app.entity.MotifDuplicate;
 import com.sprint.app.entity.Nationalite;
 import com.sprint.app.entity.Passeport;
 import com.sprint.app.entity.PieceJustificative;
 import com.sprint.app.entity.SituationFamiliale;
+import com.sprint.app.entity.TypeDemande;
 import com.sprint.app.entity.VisaTransformable;
 import com.sprint.app.service.DemandeService;
 import com.sprint.app.service.DemandeurService;
+import com.sprint.app.service.DuplicataService;
 
 @Controller
 @RequestMapping("/demandeurs")
@@ -36,6 +39,9 @@ public class DemandeurController {
 
     @Autowired
     private DemandeService demandeService;
+
+    @Autowired
+    private DuplicataService duplicataService;
 
     /**
      * Liste des demandeurs avec recherche.
@@ -85,6 +91,12 @@ public class DemandeurController {
         return payload;
     }
 
+    @GetMapping("/duplicata-motifs")
+    @ResponseBody
+    public List<MotifDuplicate> getDuplicataMotifs() {
+        return duplicataService.getAllMotifs();
+    }
+
     /**
      * Enregistrer un nouveau demandeur avec passeport et visa transformable.
      */
@@ -101,61 +113,119 @@ public class DemandeurController {
             @RequestParam String adresse,
             @RequestParam Integer nationaliteId,
             @RequestParam Integer situationFamilialeId,
+            @RequestParam(required = false) Integer demandeurId,
             // Demande initiale + pieces justificatives
             @RequestParam(required = false) Integer typeDemandeId,
             @RequestParam(required = false) Integer typeVisaId,
             @RequestParam(required = false) Integer typeProfilId,
+            @RequestParam(required = false) Integer motifDuplicateId,
+            @RequestParam(required = false) String nouveauNumeroPasseport,
             @RequestParam(required = false) List<Integer> pieceIds,
             // Passeport
-            @RequestParam String numeroPasse,
-            @RequestParam String dateDelivrancePasse,
-            @RequestParam String dateExpirationPasse,
+            @RequestParam(required = false) String numeroPasse,
+            @RequestParam(required = false) String dateDelivrancePasse,
+            @RequestParam(required = false) String dateExpirationPasse,
             @RequestParam(required = false) String paysDelivrance,
             // Visa transformable
             @RequestParam(required = false) String numeroReferenceVisa,
+            @RequestParam(required = false) String dateEntreeVisa,
+            @RequestParam(required = false) String lieuEntreeVisa,
+            @RequestParam(required = false) String dateExpirationVisa,
             RedirectAttributes redirectAttributes) {
         try {
-            // Créer le demandeur
-            Demandeur demandeur = new Demandeur();
-            demandeur.setNom(nom.toUpperCase());
-            demandeur.setPrenom(prenom);
-            demandeur.setNomJeuneFille(nomJeuneFille);
-            demandeur.setNomPere(nomPere);
-            demandeur.setDateNaissance(LocalDate.parse(dateNaissance));
-            demandeur.setLieuNaissance(lieuNaissance);
-            demandeur.setProfession(profession);
-            demandeur.setTelephone(telephone);
-            demandeur.setEmail(email);
-            demandeur.setAdresse(adresse);
-
             Nationalite nationalite = demandeurService.findNationaliteById(nationaliteId)
                     .orElseThrow(() -> new IllegalStateException("Nationalité introuvable"));
-            demandeur.setNationalite(nationalite);
 
             SituationFamiliale situationFamiliale = demandeurService.findSituationFamilialeById(situationFamilialeId)
                     .orElseThrow(() -> new IllegalStateException("Situation familiale introuvable"));
-            demandeur.setSituationFamiliale(situationFamiliale);
 
-            demandeur = demandeurService.save(demandeur);
+            Demandeur demandeur;
+            Passeport passeport;
 
-            // Créer le passeport
-            Passeport passeport = new Passeport();
-            passeport.setDemandeur(demandeur);
-            passeport.setNumeroPasse(numeroPasse);
-            passeport.setDateDelivrance(LocalDate.parse(dateDelivrancePasse));
-            passeport.setDateExpiration(LocalDate.parse(dateExpirationPasse));
-            passeport.setPaysDelivrance(paysDelivrance);
-            passeport.setEstActif(true);
+            if (demandeurId != null) {
+                demandeur = demandeurService.findById(demandeurId)
+                        .orElseThrow(() -> new IllegalStateException("Demandeur introuvable"));
 
-            passeport = demandeurService.savePasseport(passeport);
+                demandeur.setNom(nom.toUpperCase());
+                demandeur.setPrenom(prenom);
+                demandeur.setNomJeuneFille(nomJeuneFille);
+                demandeur.setNomPere(nomPere);
+                demandeur.setDateNaissance(LocalDate.parse(dateNaissance));
+                demandeur.setLieuNaissance(lieuNaissance);
+                demandeur.setProfession(profession);
+                demandeur.setTelephone(telephone);
+                demandeur.setEmail(email);
+                demandeur.setAdresse(adresse);
+                demandeur.setNationalite(nationalite);
+                demandeur.setSituationFamiliale(situationFamiliale);
+
+                demandeur = demandeurService.save(demandeur);
+
+                passeport = demandeurService.getPasseportActif(demandeur.getId())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Aucun passeport actif trouvé pour ce demandeur. Impossible de créer une nouvelle demande."));
+            } else {
+                if (numeroPasse == null || numeroPasse.trim().isEmpty() || dateDelivrancePasse == null
+                        || dateDelivrancePasse.trim().isEmpty() || dateExpirationPasse == null
+                        || dateExpirationPasse.trim().isEmpty()) {
+                    throw new IllegalStateException(
+                            "Le numero de passeport, la date de delivrance et la date d expiration sont obligatoires");
+                }
+
+                // Vérifier si le numéro de passeport existe déjà
+                if (demandeurService.passeportExists(numeroPasse)) {
+                    redirectAttributes.addFlashAttribute("error",
+                            "Erreur : Le numéro de passeport '" + numeroPasse + "' existe déjà en base de données. "
+                                    + "Veuillez vérifier le numéro saisi.");
+                    return "redirect:/demandeurs/nouveau";
+                }
+
+                // Créer le demandeur
+                demandeur = new Demandeur();
+                demandeur.setNom(nom.toUpperCase());
+                demandeur.setPrenom(prenom);
+                demandeur.setNomJeuneFille(nomJeuneFille);
+                demandeur.setNomPere(nomPere);
+                demandeur.setDateNaissance(LocalDate.parse(dateNaissance));
+                demandeur.setLieuNaissance(lieuNaissance);
+                demandeur.setProfession(profession);
+                demandeur.setTelephone(telephone);
+                demandeur.setEmail(email);
+                demandeur.setAdresse(adresse);
+                demandeur.setNationalite(nationalite);
+                demandeur.setSituationFamiliale(situationFamiliale);
+
+                demandeur = demandeurService.save(demandeur);
+
+                // Créer le passeport
+                passeport = new Passeport();
+                passeport.setDemandeur(demandeur);
+                passeport.setNumeroPasse(numeroPasse);
+                passeport.setDateDelivrance(LocalDate.parse(dateDelivrancePasse));
+                passeport.setDateExpiration(LocalDate.parse(dateExpirationPasse));
+                passeport.setPaysDelivrance(paysDelivrance);
+                passeport.setEstActif(true);
+
+                passeport = demandeurService.savePasseport(passeport);
+            }
 
             // Créer le visa transformable si fourni
             VisaTransformable visaTransformableCree = null;
             if (numeroReferenceVisa != null && !numeroReferenceVisa.trim().isEmpty()) {
+                if (dateEntreeVisa == null || dateEntreeVisa.trim().isEmpty()
+                        || lieuEntreeVisa == null || lieuEntreeVisa.trim().isEmpty()
+                        || dateExpirationVisa == null || dateExpirationVisa.trim().isEmpty()) {
+                    throw new IllegalStateException(
+                            "Date d entree, lieu d entree et date d expiration du VISA transformable sont obligatoires");
+                }
+
                 VisaTransformable vt = new VisaTransformable();
                 vt.setDemandeur(demandeur);
                 vt.setPasseport(passeport);
                 vt.setNumeroReference(numeroReferenceVisa.trim());
+                vt.setDateEntree(LocalDate.parse(dateEntreeVisa));
+                vt.setLieuEntree(lieuEntreeVisa.trim());
+                vt.setDateExpiration(LocalDate.parse(dateExpirationVisa));
                 visaTransformableCree = demandeurService.saveVisaTransformable(vt);
             }
 
@@ -167,22 +237,46 @@ public class DemandeurController {
                             "Le numero de reference du VISA transformable est obligatoire pour creer la demande initiale");
                 }
 
-                Demande demande = demandeService.creerDemande(
-                        demandeur.getId(),
-                        typeDemandeId,
-                        typeVisaId,
-                        typeProfilId,
-                        visaTransformableCree.getId(),
-                        "Demande initiale creee lors de l enregistrement du demandeur");
+                // Récupérer le type de demande pour vérifier si c'est un Duplicata/Transfert
+                TypeDemande typeDemande = demandeService.getTypeDemandeById(typeDemandeId)
+                        .orElseThrow(() -> new IllegalStateException("Type de demande introuvable"));
+                boolean isDuplicataOrTransfer = typeDemande.getLibelle().toLowerCase().contains("duplicata")
+                        || typeDemande.getLibelle().toLowerCase().contains("transfert");
+
+                Demande demande;
+                if (isDuplicataOrTransfer) {
+                    // Créer avec statut "approuvee" pour Duplicata/Transfert
+                    demande = demandeService.creerDemandeApprouvee(
+                            demandeur.getId(),
+                            typeDemandeId,
+                            typeVisaId,
+                            typeProfilId,
+                            visaTransformableCree.getId(),
+                            motifDuplicateId,
+                            nouveauNumeroPasseport,
+                            "Demande de " + typeDemande.getLibelle().toLowerCase()
+                                    + " creee lors de l enregistrement du demandeur");
+                } else {
+                    // Créer une demande normale avec statut "brouillon"
+                    demande = demandeService.creerDemande(
+                            demandeur.getId(),
+                            typeDemandeId,
+                            typeVisaId,
+                            typeProfilId,
+                            visaTransformableCree.getId(),
+                            "Demande initiale creee lors de l enregistrement du demandeur");
+                }
 
                 demandeService.enregistrerPiecesPourDemande(demande, pieceIds);
             }
 
             redirectAttributes.addFlashAttribute("success",
-                    "Demandeur " + demandeur.getNomComplet() + " créé avec succès");
+                    demandeurId != null
+                            ? "Demandeur " + demandeur.getNomComplet() + " mis à jour avec succès"
+                            : "Demandeur " + demandeur.getNomComplet() + " créé avec succès");
             return "redirect:/demandeurs/" + demandeur.getId();
 
-        } catch (Exception e) {
+        } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("error", "Erreur : " + e.getMessage());
             return "redirect:/demandeurs/nouveau";
         }

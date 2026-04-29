@@ -1,9 +1,11 @@
 package com.sprint.app.service;
 
+import java.io.ByteArrayOutputStream;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,9 +14,15 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import com.sprint.app.entity.Demande;
 import com.sprint.app.entity.DemandePiece;
 import com.sprint.app.entity.Demandeur;
@@ -36,6 +44,8 @@ import com.sprint.app.repository.VisaTransformableRepository;
 
 @Service
 public class DemandeService {
+
+    private static final int QR_CODE_SIZE = 280;
 
     @Autowired
     private DemandeRepository demandeRepository;
@@ -63,6 +73,9 @@ public class DemandeService {
 
     @Autowired
     private DemandePieceRepository demandePieceRepository;
+
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
 
     // ==================== CRUD ====================
 
@@ -165,8 +178,66 @@ public class DemandeService {
 
         demande = demandeRepository.save(demande);
 
+        // Generer et associer le QR code qui pointe vers l'application Vue.
+        enrichirQrCodeDemande(demande);
+
         // Créer l'entrée d'historique initiale
         creerHistoriqueStatut(demande, "brouillon");
+
+        return demande;
+    }
+
+    /**
+     * Créer une demande de Duplicata/Transfert avec statut "approuvee" pour un
+     * sans-données.
+     * Cette méthode est utilisée lors de la création d'un nouveau demandeur sans
+     * données antérieures.
+     */
+    @Transactional
+    public Demande creerDemandeApprouvee(Integer demandeurId, Integer typeDemandeId, Integer typeVisaId,
+            Integer typeProfilId, Integer visaTransformableId, Integer motifDuplicateId,
+            String nouveauNumeroPasseport, String observations) {
+
+        // Charger les entités
+        Demandeur demandeur = demandeurRepository.findById(demandeurId)
+                .orElseThrow(() -> new IllegalStateException("Demandeur introuvable"));
+
+        TypeDemande typeDemande = typeDemandeRepository.findById(typeDemandeId)
+                .orElseThrow(() -> new IllegalStateException("Type de demande introuvable"));
+
+        TypeVisa typeVisa = typeVisaRepository.findById(typeVisaId)
+                .orElseThrow(() -> new IllegalStateException("Type de VISA introuvable"));
+
+        VisaTransformable visaTransformable = visaTransformableRepository.findById(visaTransformableId)
+                .orElseThrow(() -> new IllegalStateException("VISA transformable introuvable"));
+
+        // Créer la demande avec statut "approuvee"
+        Demande demande = new Demande();
+        demande.setDemandeur(demandeur);
+        demande.setTypeDemande(typeDemande);
+        demande.setTypeVisa(typeVisa);
+        if (typeProfilId != null) {
+            TypeProfil typeProfil = typeProfilRepository.findById(typeProfilId).orElse(null);
+            demande.setTypeProfil(typeProfil);
+        }
+        demande.setVisaTransformable(visaTransformable);
+        demande.setDateDemande(LocalDateTime.now());
+        demande.setStatut("approuvee");
+        demande.setSansDonnees(true);
+        demande.setObservations(observations);
+
+        // Ajouter les champs spécifiques au Duplicata/Transfert
+        if (motifDuplicateId != null) {
+            // Laisse le repository faire le travail avec le champ motifDuplicate
+        }
+        if (nouveauNumeroPasseport != null) {
+            demande.setNouveauNumeroPasseport(nouveauNumeroPasseport);
+        }
+
+        demande = demandeRepository.save(demande);
+
+        // Créer l'entrée d'historique pour "approuvee"
+        creerHistoriqueStatut(demande, "approuvee");
 
         return demande;
     }
@@ -180,6 +251,9 @@ public class DemandeService {
     public Demande soumettreDemande(Integer demandeId) throws IllegalStateException {
         Demande demande = demandeRepository.findById(demandeId)
                 .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        // Vérifier que le dossier n'est pas verrouillé
+        verifyDemandeCanBeModified(demande);
 
         if (!"brouillon".equals(demande.getStatut())) {
             throw new IllegalStateException("Seule une demande en brouillon peut être soumise");
@@ -205,6 +279,9 @@ public class DemandeService {
 
         Demande demande = demandeRepository.findById(demandeId)
                 .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        // Vérifier que le dossier n'est pas verrouillé
+        verifyDemandeCanBeModified(demande);
 
         String statutActuel = demande.getStatut();
 
@@ -285,6 +362,10 @@ public class DemandeService {
         return typeProfilRepository.findAll();
     }
 
+    public Optional<TypeDemande> getTypeDemandeById(Integer id) {
+        return typeDemandeRepository.findById(id);
+    }
+
     // ==================== PIECES JUSTIFICATIVES ====================
 
     public List<PieceJustificative> getPiecesJustificatives(Integer typeDemandeId, Integer typeVisaId) {
@@ -310,6 +391,9 @@ public class DemandeService {
 
     @Transactional
     public void enregistrerPiecesPourDemande(Demande demande, List<Integer> pieceIdsCochees) {
+        // Vérifier que le dossier n'est pas verrouillé
+        verifyDemandeCanBeModified(demande);
+
         List<PieceJustificative> piecesAttendues = getPiecesJustificatives(
                 demande.getTypeDemande().getId(),
                 demande.getTypeVisa().getId());
@@ -350,5 +434,194 @@ public class DemandeService {
         String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "");
         return normalized.toLowerCase();
+    }
+
+    // ==================== GESTION DU SCAN ====================
+
+    /**
+     * Vérifier si une demande peut être modifiée.
+     * Les demandes verrouillées (estVerrouille=true) ne peuvent pas être modifiées.
+     */
+    private void verifyDemandeCanBeModified(Demande demande) throws IllegalStateException {
+        if (Boolean.TRUE.equals(demande.getEstVerrouille())) {
+            throw new IllegalStateException("Le dossier est verrouillé, aucune modification n'est possible");
+        }
+    }
+
+    /**
+     * Vérifier si toutes les pièces justificatives sont scannées.
+     */
+    public boolean toutesLesPieceSontScannees(Integer demandeId) {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        List<DemandePiece> pieces = demandePieceRepository.findByDemandeId(demandeId);
+        
+        if (pieces.isEmpty()) {
+            return false; // Aucune pièce = pas scanné
+        }
+
+        return pieces.stream()
+                .allMatch(p -> "SCANNEE".equals(p.getStatutScan()));
+    }
+
+    /**
+     * Marquer une pièce justificative comme scannée.
+     * - Pendant le scan: toutes les pièces peuvent être uploadées/modifiées
+     * - Après terminer scan: seules les pièces non scannées peuvent être uploadées
+     *   Les pièces déjà scannées ne peuvent plus être modifiées
+     */
+    @Transactional
+    public DemandePiece marquerPieceCommeScannee(Integer demandePieceId, String cheminFichier)
+            throws IllegalStateException {
+        DemandePiece demandePiece = demandePieceRepository.findById(demandePieceId)
+                .orElseThrow(() -> new IllegalStateException("Pièce demande introuvable"));
+
+        Demande demande = demandePiece.getDemande();
+        
+        // Si le dossier est complètement verrouillé, rien ne peut être modifié
+        if (Boolean.TRUE.equals(demande.getEstVerrouille())) {
+            throw new IllegalStateException("Le dossier est verrouillé, aucune modification n'est possible");
+        }
+        
+        // Si le scan est terminé et cette pièce a déjà été scannée, on ne peut pas la modifier
+        if (("SCAN_TERMINE".equals(demande.getStatutScan()) || "DOSSIER_VERROUILLE".equals(demande.getStatutScan()))
+                && "SCANNEE".equals(demandePiece.getStatutScan())) {
+            throw new IllegalStateException("Cette pièce a déjà été scannée et ne peut plus être modifiée");
+        }
+
+        demandePiece.setStatutScan("SCANNEE");
+        demandePiece.setDateScan(LocalDate.now());
+        demandePiece.setCheminFichier(cheminFichier);
+
+        return demandePieceRepository.save(demandePiece);
+    }
+
+    /**
+     * Terminer le scan et verrouiller le dossier.
+     */
+    @Transactional
+    public Demande terminerScanEtVerrouiller(Integer demandeId) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        if (!toutesLesPieceSontScannees(demandeId)) {
+            throw new IllegalStateException("Toutes les pièces justificatives doivent être scannées avant de terminer le scan");
+        }
+
+        demande.setStatutScan("SCAN_TERMINE");
+        demande.setDateScanTermine(LocalDate.now());
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Verrouiller complètement le dossier (après validation du scan).
+     */
+    @Transactional
+    public Demande verrouilleDossier(Integer demandeId) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        if (!"SCAN_TERMINE".equals(demande.getStatutScan())) {
+            throw new IllegalStateException("Le scan doit être terminé avant de verrouiller le dossier");
+        }
+
+        demande.setEstVerrouille(true);
+        demande.setStatutScan("DOSSIER_VERROUILLE");
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Déverrouiller un dossier (ADMIN ONLY - en cas de correction nécessaire).
+     */
+    @Transactional
+    public Demande deverrouillirDossier(Integer demandeId) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        if (!Boolean.TRUE.equals(demande.getEstVerrouille())) {
+            throw new IllegalStateException("Le dossier n'est pas verrouillé");
+        }
+
+        demande.setEstVerrouille(false);
+        demande.setStatutScan("EN_COURS_DE_SCAN");
+        demande.setDateScanTermine(null);
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Changer l'état de verrouillage d'un dossier (ADMIN).
+     * true = verrouillé (aucune modification)
+     * false = déverrouillé (modifications autorisées)
+     */
+    @Transactional
+    public Demande changerVerrouillage(Integer demandeId, Boolean estVerrouille) throws IllegalStateException {
+        Demande demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalStateException("Demande introuvable"));
+
+        demande.setEstVerrouille(estVerrouille != null && estVerrouille);
+        
+        if (Boolean.TRUE.equals(estVerrouille)) {
+            demande.setStatutScan("DOSSIER_VERROUILLE");
+            demande.setDateScanTermine(LocalDate.now());
+        } else {
+            demande.setStatutScan("EN_COURS_DE_SCAN");
+            demande.setDateScanTermine(null);
+        }
+
+        return demandeRepository.save(demande);
+    }
+
+    /**
+     * Récupérer toutes les pièces d'une demande avec leur statut de scan.
+     */
+    public List<DemandePiece> getPiecesDemande(Integer demandeId) {
+        return demandePieceRepository.findByDemandeId(demandeId);
+    }
+
+    /**
+     * Récupérer une pièce justificative par son ID.
+     */
+    // Méthodes d'édition des pièces désactivées car l'UI d'édition a été retirée.
+    // ==================== SPRINT 2 - DUPLICATA ====================
+
+    /**
+     * Récupérer les demandeurs qui ont au moins une demande de type Duplicata ou
+     * Transfert
+     */
+    public List<Demandeur> getDemandeursWithDuplicataOrTransfer() {
+        List<Demande> demands = demandeRepository.findAll();
+        Set<Demandeur> demandeurs = new HashSet<>();
+
+        for (Demande demande : demands) {
+            String typeLibelle = demande.getTypeDemande().getLibelle().toLowerCase();
+            if (typeLibelle.contains("duplicata") || typeLibelle.contains("transfert")) {
+                demandeurs.add(demande.getDemandeur());
+            }
+        }
+        return new ArrayList<>(demandeurs);
+    }
+
+    private void enrichirQrCodeDemande(Demande demande) {
+        String frontendDetailUrl = frontendBaseUrl + "/demande/" + demande.getId();
+        demande.setQrCodeUrl(frontendDetailUrl);
+        demande.setQrCodeImageBase64(generateQrCodeBase64(frontendDetailUrl));
+        demandeRepository.save(demande);
+    }
+
+    private String generateQrCodeBase64(String content) {
+        try {
+            QRCodeWriter qrCodeWriter = new QRCodeWriter();
+            BitMatrix bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, QR_CODE_SIZE, QR_CODE_SIZE);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (WriterException | java.io.IOException e) {
+            throw new IllegalStateException("Impossible de generer le QR code de la demande", e);
+        }
     }
 }
